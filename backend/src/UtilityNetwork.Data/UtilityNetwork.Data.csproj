@@ -5,8 +5,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="dbup-postgresql" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Sql\*.sql" />
   </ItemGroup>
 
 </Project>
