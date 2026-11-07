@@ -3,6 +3,7 @@ using Serilog;
 using UtilityNetwork.Api.Middleware;
 using UtilityNetwork.Core.Configuration;
 using UtilityNetwork.Data.Extensions;
+using UtilityNetwork.Data.Migrations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +55,30 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Execute CLI migration if requested via command-line arguments
+if (args.Contains("--migrate", StringComparer.OrdinalIgnoreCase))
+{
+    var migrator = app.Services.GetRequiredService<IDatabaseMigrator>();
+    var result = migrator.MigrateDatabase();
+    if (!result.IsSuccessful)
+    {
+        Environment.ExitCode = 1;
+        return;
+    }
+    return;
+}
+
+// Automatically apply migrations on startup in Development environment
+if (app.Environment.IsDevelopment())
+{
+    var migrator = app.Services.GetRequiredService<IDatabaseMigrator>();
+    var migrationResult = migrator.MigrateDatabase();
+    if (!migrationResult.IsSuccessful)
+    {
+        throw new InvalidOperationException($"Development database migration failed: {migrationResult.ErrorMessage}");
+    }
+}
 
 // Security headers
 app.UseMiddleware<SecurityHeadersMiddleware>();
