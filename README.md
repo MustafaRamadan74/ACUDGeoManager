@@ -116,3 +116,4 @@ All endpoints follow RESTful conventions under `/api/v1`:
 - `/networks/{id}/trace`: Directional upstream, downstream, and isolation tracing.
 - `/history/*`: Change set inspection, undo, and redo operations.
 - `/health`: Comprehensive system and database health checks.
+
