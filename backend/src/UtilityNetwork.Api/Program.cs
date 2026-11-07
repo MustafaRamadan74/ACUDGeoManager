@@ -1,7 +1,20 @@
 using System.Globalization;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
+using FluentValidation;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Serilog;
 using UtilityNetwork.Api.Middleware;
 using UtilityNetwork.Core.Configuration;
+using UtilityNetwork.Core.Services;
+using UtilityNetwork.Core.Validators;
 using UtilityNetwork.Data.Extensions;
 using UtilityNetwork.Data.Migrations;
 
@@ -16,15 +29,78 @@ builder.Host.UseSerilog((context, services, configuration) => configuration
         outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}",
         formatProvider: CultureInfo.InvariantCulture));
 
-// Configuration binding
-builder.Services.Configure<DatabaseOptions>(
-    builder.Configuration.GetSection(DatabaseOptions.SectionName));
+// Strongly typed configuration options
+builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.SectionName));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<AdminOptions>(builder.Configuration.GetSection(AdminOptions.SectionName));
 
-// Services
-builder.Services.AddControllers();
+// FluentValidation registration
+builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
+
+// Strict JSON serialization & Controllers
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddDataInfrastructure();
+
+// Rate Limiting for Auth endpoints
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("AuthRateLimit", opt =>
+    {
+        opt.PermitLimit = 15;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+});
+
+// Authentication & JWT Bearer setup
+var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyAtLeast32BytesLongForSecurityTestingOnly1234567890!";
+var keyBytes = Encoding.UTF8.GetBytes(jwtSecret);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false; // local development
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+        ValidateIssuer = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "ACUDGeoManager",
+        ValidateAudience = true,
+        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "ACUDGeoManagerClient",
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.FromSeconds(30),
+        RoleClaimType = ClaimTypes.Role,
+        NameClaimType = JwtRegisteredClaimNames.UniqueName
+    };
+});
+
+// Authorization with fallback policy: Deny by default
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+
+    options.AddPolicy("Viewer", p => p.RequireRole("VIEWER", "EDITOR", "ADMIN"));
+    options.AddPolicy("Editor", p => p.RequireRole("EDITOR", "ADMIN"));
+    options.AddPolicy("Admin", p => p.RequireRole("ADMIN"));
+});
 
 // CORS
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Value?
@@ -42,21 +118,45 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Swagger / OpenAPI specification at /api/docs
+// Swagger / OpenAPI documentation
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "ACUD GeoManager API",
         Version = "v1",
         Description = "Enterprise Web GIS utility network management platform API"
     });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
 var app = builder.Build();
 
-// Execute CLI migration if requested via command-line arguments
+// CLI migrations
 if (args.Contains("--migrate", StringComparer.OrdinalIgnoreCase))
 {
     var migrator = app.Services.GetRequiredService<IDatabaseMigrator>();
@@ -69,7 +169,16 @@ if (args.Contains("--migrate", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
-// Automatically apply migrations on startup in Development environment
+// CLI admin bootstrap
+if (args.Contains("--bootstrap-admin", StringComparer.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
+    var bootstrapper = scope.ServiceProvider.GetRequiredService<IAdminBootstrapService>();
+    await bootstrapper.EnsureAdminCreatedAsync();
+    return;
+}
+
+// Automatically apply migrations and bootstrap admin in Development
 if (app.Environment.IsDevelopment())
 {
     var migrator = app.Services.GetRequiredService<IDatabaseMigrator>();
@@ -78,15 +187,16 @@ if (app.Environment.IsDevelopment())
     {
         throw new InvalidOperationException($"Development database migration failed: {migrationResult.ErrorMessage}");
     }
+
+    using var scope = app.Services.CreateScope();
+    var bootstrapper = scope.ServiceProvider.GetRequiredService<IAdminBootstrapService>();
+    await bootstrapper.EnsureAdminCreatedAsync();
 }
 
-// Security headers
+// Pipeline
 app.UseMiddleware<SecurityHeadersMiddleware>();
-
-// Centralized error handling
 app.UseExceptionHandler();
 
-// Swagger Documentation at /api/docs
 app.UseSwagger(c =>
 {
     c.RouteTemplate = "api/docs/{documentName}/swagger.json";
@@ -97,10 +207,14 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "api/docs";
 });
 
+app.UseRouting();
 app.UseCors();
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
 
-// Required for WebApplicationFactory in integration tests
 public partial class Program { }

@@ -10,6 +10,9 @@
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
   </ItemGroup>
 
 </Project>
