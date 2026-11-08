@@ -500,6 +500,7 @@ export default function GisPage() {
       {isAdminOpen && (
         <UserAdminModal
           networks={networks}
+          featureTypes={featureTypes}
           onClose={() => setIsAdminOpen(false)}
         />
       )}

@@ -290,3 +290,4 @@ export const NearestQueryModal: React.FC<NearestQueryModalProps> = ({
     </div>
   );
 };
+

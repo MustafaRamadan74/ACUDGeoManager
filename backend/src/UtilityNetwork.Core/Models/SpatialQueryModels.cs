@@ -30,3 +30,4 @@ public sealed record RichWorkspaceSummaryDto(
     IReadOnlyDictionary<string, double> LengthsByTypeM,
     IReadOnlyDictionary<string, double> AreasByTypeSqm,
     IReadOnlyList<TypeStatusCountDto> Details);
+

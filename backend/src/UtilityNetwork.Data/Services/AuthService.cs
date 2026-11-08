@@ -69,7 +69,8 @@ public sealed class AuthService : IAuthService
             user.Email,
             user.Role.ToString().ToUpperInvariant(),
             user.IsActive,
-            networks);
+            networks,
+            user.Department);
 
         return (new LoginResponse(accessToken, expiresInSeconds, userDto), rawRefreshToken);
     }
@@ -124,7 +125,8 @@ public sealed class AuthService : IAuthService
             user.Email,
             user.Role.ToString().ToUpperInvariant(),
             user.IsActive,
-            networks);
+            networks,
+            user.Department);
 
         return (new LoginResponse(accessToken, expiresInSeconds, userDto), newRawToken);
     }

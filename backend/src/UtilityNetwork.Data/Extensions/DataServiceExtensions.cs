@@ -19,6 +19,8 @@ public static class DataServiceExtensions
         services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
         services.AddSingleton<ITokenService, TokenService>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ILayerPermissionRepository, LayerPermissionRepository>();
+        services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IAdminBootstrapService, AdminBootstrapService>();
 

@@ -58,6 +58,12 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
                 authEx.Message,
                 null
             ),
+            ForbiddenException forbEx => (
+                StatusCodes.Status403Forbidden,
+                "Forbidden",
+                forbEx.Message,
+                null
+            ),
             OptimisticConcurrencyException concEx => (
                 StatusCodes.Status409Conflict,
                 "Concurrency Conflict",

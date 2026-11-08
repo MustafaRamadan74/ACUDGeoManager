@@ -240,3 +240,4 @@ export const SpatialSelectionModal: React.FC<SpatialSelectionModalProps> = ({
     </div>
   );
 };
+

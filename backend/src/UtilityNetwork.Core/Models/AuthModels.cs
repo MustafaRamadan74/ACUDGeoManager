@@ -13,20 +13,23 @@ public sealed record UserDto(
     string Email,
     string Role,
     bool IsActive,
-    IReadOnlyList<Guid> AccessibleNetworkIds);
+    IReadOnlyList<Guid> AccessibleNetworkIds,
+    string? Department = null);
 
 public sealed record CreateUserRequest(
     string Username,
     string Email,
     string Password,
     string Role,
-    IReadOnlyList<Guid>? NetworkIds);
+    IReadOnlyList<Guid>? NetworkIds,
+    string? Department = null);
 
 public sealed record UpdateUserRequest(
     string? Email,
     string? Role,
     bool? IsActive,
-    IReadOnlyList<Guid>? NetworkIds);
+    IReadOnlyList<Guid>? NetworkIds,
+    string? Department = null);
 
 public sealed record AssignNetworksRequest(
     IReadOnlyList<Guid> NetworkIds);
@@ -39,4 +42,5 @@ public sealed record UserResponse(
     bool IsActive,
     DateTime? LastLoginAt,
     DateTime CreatedAt,
-    IReadOnlyList<Guid> AccessibleNetworkIds);
+    IReadOnlyList<Guid> AccessibleNetworkIds,
+    string? Department = null);

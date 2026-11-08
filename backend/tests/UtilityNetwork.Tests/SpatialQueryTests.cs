@@ -128,3 +128,4 @@ public sealed class SpatialQueryTests : IClassFixture<WebApplicationFactory<Prog
         Assert.True(summary.LengthsByTypeM.ContainsKey("PIPE"), "PIPE length in metres must be calculated.");
     }
 }
+

@@ -18,6 +18,7 @@ public sealed record User
     public int FailedLoginCount { get; init; }
     public DateTime? LockedUntil { get; init; }
     public DateTime? LastLoginAt { get; init; }
+    public string? Department { get; init; }
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
 }
 

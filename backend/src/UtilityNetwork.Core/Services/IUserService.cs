@@ -11,4 +11,6 @@ public interface IUserService
     Task<bool> DeleteUserAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<Guid>> GetUserNetworksAsync(Guid id, CancellationToken ct = default);
     Task AssignNetworksAsync(Guid id, IReadOnlyList<Guid> networkIds, CancellationToken ct = default);
+    Task<IReadOnlyList<LayerPermissionDto>> GetUserPermissionsAsync(Guid userId, CancellationToken ct = default);
+    Task SetUserPermissionsAsync(Guid userId, IEnumerable<UpdateLayerPermissionRequest> permissions, CancellationToken ct = default);
 }

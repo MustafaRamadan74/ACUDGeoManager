@@ -16,17 +16,20 @@ public sealed class FeatureService : IFeatureService
     private readonly ICatalogRepository _catalogRepository;
     private readonly IFeatureValidationService _validationService;
     private readonly IUnitOfWorkFactory _uowFactory;
+    private readonly IPermissionService _permissionService;
 
     public FeatureService(
         IFeatureRepository featureRepository,
         ICatalogRepository catalogRepository,
         IFeatureValidationService validationService,
-        IUnitOfWorkFactory uowFactory)
+        IUnitOfWorkFactory uowFactory,
+        IPermissionService permissionService)
     {
         _featureRepository = featureRepository;
         _catalogRepository = catalogRepository;
         _validationService = validationService;
         _uowFactory = uowFactory;
+        _permissionService = permissionService;
     }
 
     private static UserContext ExtractUserContext(ClaimsPrincipal user)
@@ -70,6 +73,7 @@ public sealed class FeatureService : IFeatureService
         if (point != null)
         {
             EnsureNetworkAccess(user, point.NetworkId);
+            await _permissionService.EnsureLayerPermissionAsync(user, point.NetworkId, point.FeatureTypeCode, LayerAction.Read, ct);
         }
         return point;
     }
@@ -77,6 +81,7 @@ public sealed class FeatureService : IFeatureService
     public async Task<PointFeatureDto> CreatePointAsync(CreatePointRequest req, ClaimsPrincipal user, CancellationToken ct = default)
     {
         EnsureNetworkAccess(user, req.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, req.NetworkId, req.FeatureTypeCode, LayerAction.Create, ct);
 
         var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(req.FeatureTypeCode, ct);
         if (ft is null)
@@ -109,6 +114,7 @@ public sealed class FeatureService : IFeatureService
             throw new KeyNotFoundException($"Point with ID '{id}' was not found.");
         }
         EnsureNetworkAccess(user, existing.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Update, ct);
 
         if (req.X.HasValue && req.Y.HasValue)
         {
@@ -145,6 +151,7 @@ public sealed class FeatureService : IFeatureService
             throw new KeyNotFoundException($"Point with ID '{id}' was not found.");
         }
         EnsureNetworkAccess(user, existing.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Delete, ct);
 
         var userContext = ExtractUserContext(user);
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Delete point: {id}", ct: ct);
@@ -178,6 +185,7 @@ public sealed class FeatureService : IFeatureService
         if (line != null)
         {
             EnsureNetworkAccess(user, line.NetworkId);
+            await _permissionService.EnsureLayerPermissionAsync(user, line.NetworkId, line.FeatureTypeCode, LayerAction.Read, ct);
         }
         return line;
     }
@@ -185,6 +193,7 @@ public sealed class FeatureService : IFeatureService
     public async Task<LineFeatureDto> CreateLineAsync(CreateLineRequest req, ClaimsPrincipal user, CancellationToken ct = default)
     {
         EnsureNetworkAccess(user, req.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, req.NetworkId, req.FeatureTypeCode, LayerAction.Create, ct);
 
         var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(req.FeatureTypeCode, ct);
         if (ft is null)
@@ -217,6 +226,7 @@ public sealed class FeatureService : IFeatureService
             throw new KeyNotFoundException($"Line with ID '{id}' was not found.");
         }
         EnsureNetworkAccess(user, existing.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Update, ct);
 
         if (req.Coordinates != null)
         {
@@ -253,6 +263,7 @@ public sealed class FeatureService : IFeatureService
             throw new KeyNotFoundException($"Line with ID '{id}' was not found.");
         }
         EnsureNetworkAccess(user, existing.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Delete, ct);
 
         var userContext = ExtractUserContext(user);
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Delete line: {id}", ct: ct);
@@ -286,6 +297,7 @@ public sealed class FeatureService : IFeatureService
         if (poly != null)
         {
             EnsureNetworkAccess(user, poly.NetworkId);
+            await _permissionService.EnsureLayerPermissionAsync(user, poly.NetworkId, poly.FeatureTypeCode, LayerAction.Read, ct);
         }
         return poly;
     }
@@ -293,6 +305,7 @@ public sealed class FeatureService : IFeatureService
     public async Task<PolygonFeatureDto> CreatePolygonAsync(CreatePolygonRequest req, ClaimsPrincipal user, CancellationToken ct = default)
     {
         EnsureNetworkAccess(user, req.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, req.NetworkId, req.FeatureTypeCode, LayerAction.Create, ct);
 
         var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(req.FeatureTypeCode, ct);
         if (ft is null)
@@ -325,6 +338,7 @@ public sealed class FeatureService : IFeatureService
             throw new KeyNotFoundException($"Polygon with ID '{id}' was not found.");
         }
         EnsureNetworkAccess(user, existing.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Update, ct);
 
         if (req.RingCoordinates != null)
         {
@@ -361,6 +375,7 @@ public sealed class FeatureService : IFeatureService
             throw new KeyNotFoundException($"Polygon with ID '{id}' was not found.");
         }
         EnsureNetworkAccess(user, existing.NetworkId);
+        await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Delete, ct);
 
         var userContext = ExtractUserContext(user);
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Delete polygon: {id}", ct: ct);
@@ -378,7 +393,7 @@ public sealed class FeatureService : IFeatureService
     // UNIFIED MAP
     // =========================================================================
 
-    public Task<GeoJsonFeatureCollection> GetMapFeaturesAsync(
+    public async Task<GeoJsonFeatureCollection> GetMapFeaturesAsync(
         double minX,
         double minY,
         double maxX,
@@ -397,6 +412,29 @@ public sealed class FeatureService : IFeatureService
             }
         }
 
-        return _featureRepository.GetMapFeaturesAsync(minX, minY, maxX, maxY, networkIds, typeCodes, limit, ct);
+        // Filter out unreadable layers if user is not ADMIN
+        if (!user.IsInRole("ADMIN"))
+        {
+            var idClaim = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
+            if (Guid.TryParse(idClaim, out var uid))
+            {
+                var perms = await _permissionService.GetUserPermissionsAsync(uid, ct);
+                var unreadable = perms.Where(p => !p.CanRead).Select(p => p.FeatureTypeCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (unreadable.Count > 0)
+                {
+                    if (typeCodes != null && typeCodes.Count > 0)
+                    {
+                        typeCodes = typeCodes.Where(tc => !unreadable.Contains(tc)).ToList();
+                    }
+                    else
+                    {
+                        var allTypes = await _catalogRepository.GetFeatureTypesAsync(ct);
+                        typeCodes = allTypes.Select(t => t.Code).Where(tc => !unreadable.Contains(tc)).ToList();
+                    }
+                }
+            }
+        }
+
+        return await _featureRepository.GetMapFeaturesAsync(minX, minY, maxX, maxY, networkIds, typeCodes, limit, ct);
     }
 }

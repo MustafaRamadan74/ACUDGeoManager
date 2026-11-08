@@ -20,6 +20,8 @@ import {
   UpdateUserRequest,
   QueryWithinRequest,
   NearestQueryParams,
+  LayerPermissionDto,
+  UpdateLayerPermissionRequest,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -363,5 +365,19 @@ export const api = {
     return await request<PagedResult<AuditLogEntry>>(
       `/history?userId=${userId}&page=${page}&pageSize=${pageSize}`
     );
+  },
+
+  getUserPermissions: async (id: string): Promise<LayerPermissionDto[]> => {
+    return await request<LayerPermissionDto[]>(`/users/${id}/permissions`);
+  },
+
+  setUserPermissions: async (
+    id: string,
+    permissions: UpdateLayerPermissionRequest[]
+  ): Promise<void> => {
+    await request<void>(`/users/${id}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissions }),
+    });
   },
 };

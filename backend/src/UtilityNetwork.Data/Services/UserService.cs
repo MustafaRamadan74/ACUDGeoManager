@@ -9,11 +9,16 @@ public sealed class UserService : IUserService
 {
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasherService _passwordHasher;
+    private readonly ILayerPermissionRepository _layerPermissionRepository;
 
-    public UserService(IUserRepository userRepository, IPasswordHasherService passwordHasher)
+    public UserService(
+        IUserRepository userRepository,
+        IPasswordHasherService passwordHasher,
+        ILayerPermissionRepository layerPermissionRepository)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
+        _layerPermissionRepository = layerPermissionRepository;
     }
 
     public async Task<IReadOnlyList<UserResponse>> GetUsersAsync(CancellationToken ct = default)
@@ -32,7 +37,8 @@ public sealed class UserService : IUserService
                 u.IsActive,
                 u.LastLoginAt,
                 u.CreatedAt,
-                networks));
+                networks,
+                u.Department));
         }
 
         return responses;
@@ -55,7 +61,8 @@ public sealed class UserService : IUserService
             u.IsActive,
             u.LastLoginAt,
             u.CreatedAt,
-            networks);
+            networks,
+            u.Department);
     }
 
     public async Task<UserResponse> CreateUserAsync(CreateUserRequest request, CancellationToken ct = default)
@@ -68,6 +75,7 @@ public sealed class UserService : IUserService
             Email = request.Email,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             Role = role,
+            Department = request.Department,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -88,7 +96,8 @@ public sealed class UserService : IUserService
             user.IsActive,
             null,
             user.CreatedAt,
-            networks);
+            networks,
+            user.Department);
     }
 
     public async Task<UserResponse?> UpdateUserAsync(Guid id, UpdateUserRequest request, CancellationToken ct = default)
@@ -109,6 +118,7 @@ public sealed class UserService : IUserService
         {
             Email = !string.IsNullOrWhiteSpace(request.Email) ? request.Email : existing.Email,
             Role = role,
+            Department = request.Department ?? existing.Department,
             IsActive = request.IsActive ?? existing.IsActive
         };
 
@@ -128,7 +138,8 @@ public sealed class UserService : IUserService
             updated.IsActive,
             updated.LastLoginAt,
             updated.CreatedAt,
-            networks);
+            networks,
+            updated.Department);
     }
 
     public async Task<bool> DeleteUserAsync(Guid id, CancellationToken ct = default)
@@ -151,5 +162,15 @@ public sealed class UserService : IUserService
     public Task AssignNetworksAsync(Guid id, IReadOnlyList<Guid> networkIds, CancellationToken ct = default)
     {
         return _userRepository.AssignUserNetworksAsync(id, networkIds, ct);
+    }
+
+    public Task<IReadOnlyList<LayerPermissionDto>> GetUserPermissionsAsync(Guid userId, CancellationToken ct = default)
+    {
+        return _layerPermissionRepository.GetUserLayerPermissionsAsync(userId, ct);
+    }
+
+    public Task SetUserPermissionsAsync(Guid userId, IEnumerable<UpdateLayerPermissionRequest> permissions, CancellationToken ct = default)
+    {
+        return _layerPermissionRepository.SetUserLayerPermissionsAsync(userId, permissions, ct);
     }
 }

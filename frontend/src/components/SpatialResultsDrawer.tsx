@@ -339,3 +339,4 @@ export const SpatialResultsDrawer: React.FC<SpatialResultsDrawerProps> = ({
     </aside>
   );
 };
+

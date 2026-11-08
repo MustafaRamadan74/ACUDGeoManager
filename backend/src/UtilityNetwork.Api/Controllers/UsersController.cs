@@ -98,4 +98,20 @@ public sealed class UsersController : ControllerBase
         await _userService.AssignNetworksAsync(id, request.NetworkIds, cancellationToken);
         return NoContent();
     }
+
+    [HttpGet("{id:guid}/permissions")]
+    [ProducesResponseType(typeof(IReadOnlyList<LayerPermissionDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPermissionsAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var permissions = await _userService.GetUserPermissionsAsync(id, cancellationToken);
+        return Ok(permissions);
+    }
+
+    [HttpPut("{id:guid}/permissions")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SetPermissionsAsync(Guid id, [FromBody] UserLayerPermissionsUpdateRequest request, CancellationToken cancellationToken)
+    {
+        await _userService.SetUserPermissionsAsync(id, request.Permissions, cancellationToken);
+        return NoContent();
+    }
 }

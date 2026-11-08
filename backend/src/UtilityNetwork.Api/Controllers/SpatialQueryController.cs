@@ -24,20 +24,8 @@ public sealed class SpatialQueryController : ControllerBase
         [FromBody] QueryWithinRequest request,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            var result = await _spatialQueryRepository.QueryWithinAsync(request, cancellationToken);
-            return Ok(result);
-        }
-        catch (Npgsql.PostgresException ex)
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Invalid Spatial Geometry",
-                Detail = ex.MessageText,
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
+        var result = await _spatialQueryRepository.QueryWithinAsync(request, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("nearest")]
@@ -66,3 +54,4 @@ public sealed class SpatialQueryController : ControllerBase
         return Ok(result);
     }
 }
+

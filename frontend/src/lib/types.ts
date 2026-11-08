@@ -4,6 +4,7 @@ export interface UserDto {
   email: string;
   role: 'ADMIN' | 'EDITOR' | 'VIEWER';
   isActive: boolean;
+  department?: string | null;
   createdAt: string;
 }
 
@@ -209,6 +210,7 @@ export interface UserResponse {
   email: string;
   role: 'ADMIN' | 'EDITOR' | 'VIEWER';
   isActive: boolean;
+  department?: string | null;
   lastLoginAt?: string | null;
   createdAt: string;
   accessibleNetworkIds: string[];
@@ -219,6 +221,7 @@ export interface CreateUserRequest {
   email: string;
   password: string;
   role: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  department?: string | null;
   networkIds?: string[];
 }
 
@@ -226,7 +229,33 @@ export interface UpdateUserRequest {
   email?: string;
   role?: 'ADMIN' | 'EDITOR' | 'VIEWER';
   isActive?: boolean;
+  department?: string | null;
   networkIds?: string[];
+}
+
+// --- Layer Permissions ---
+
+export interface LayerPermissionDto {
+  id?: string | null;
+  userId: string;
+  featureTypeCode: string;
+  featureTypeName?: string | null;
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}
+
+export interface UpdateLayerPermissionRequest {
+  featureTypeCode: string;
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+}
+
+export interface UserLayerPermissionsUpdateRequest {
+  permissions: UpdateLayerPermissionRequest[];
 }
 
 // --- Spatial Queries ---

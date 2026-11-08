@@ -28,6 +28,7 @@ public sealed class UserRepository : IUserRepository
         const string sql = @"
             SELECT id, username, email, password_hash AS PasswordHash, 
                    role::text AS Role, is_active AS IsActive, failed_login_count AS FailedLoginCount, 
+                   department AS Department,
                    locked_until AS LockedUntil, last_login_at AS LastLoginAt, created_at AS CreatedAt
             FROM users WHERE id = @id;";
 
@@ -41,6 +42,7 @@ public sealed class UserRepository : IUserRepository
         const string sql = @"
             SELECT id, username, email, password_hash AS PasswordHash, 
                    role::text AS Role, is_active AS IsActive, failed_login_count AS FailedLoginCount, 
+                   department AS Department,
                    locked_until AS LockedUntil, last_login_at AS LastLoginAt, created_at AS CreatedAt
             FROM users WHERE lower(username) = lower(@username);";
 
@@ -54,6 +56,7 @@ public sealed class UserRepository : IUserRepository
         const string sql = @"
             SELECT id, username, email, password_hash AS PasswordHash, 
                    role::text AS Role, is_active AS IsActive, failed_login_count AS FailedLoginCount, 
+                   department AS Department,
                    locked_until AS LockedUntil, last_login_at AS LastLoginAt, created_at AS CreatedAt
             FROM users WHERE lower(email) = lower(@email);";
 
@@ -67,6 +70,7 @@ public sealed class UserRepository : IUserRepository
         const string sql = @"
             SELECT id, username, email, password_hash AS PasswordHash, 
                    role::text AS Role, is_active AS IsActive, failed_login_count AS FailedLoginCount, 
+                   department AS Department,
                    locked_until AS LockedUntil, last_login_at AS LastLoginAt, created_at AS CreatedAt
             FROM users ORDER BY created_at DESC;";
 
@@ -78,8 +82,8 @@ public sealed class UserRepository : IUserRepository
     public async Task<Guid> CreateAsync(User user, CancellationToken ct = default)
     {
         const string sql = @"
-            INSERT INTO users (id, username, email, password_hash, role, is_active, failed_login_count, created_at)
-            VALUES (@Id, @Username, @Email, @PasswordHash, @Role::user_role, @IsActive, @FailedLoginCount, @CreatedAt)
+            INSERT INTO users (id, username, email, password_hash, role, is_active, failed_login_count, department, created_at)
+            VALUES (@Id, @Username, @Email, @PasswordHash, @Role::user_role, @IsActive, @FailedLoginCount, @Department, @CreatedAt)
             RETURNING id;";
 
         await using var conn = await CreateOpenConnectionAsync(ct);
@@ -92,6 +96,7 @@ public sealed class UserRepository : IUserRepository
             Role = user.Role.ToString().ToUpperInvariant(),
             user.IsActive,
             user.FailedLoginCount,
+            user.Department,
             user.CreatedAt
         }, cancellationToken: ct));
     }
@@ -100,7 +105,7 @@ public sealed class UserRepository : IUserRepository
     {
         const string sql = @"
             UPDATE users 
-            SET email = @Email, role = @Role::user_role, is_active = @IsActive, last_login_at = @LastLoginAt
+            SET email = @Email, role = @Role::user_role, is_active = @IsActive, department = @Department, last_login_at = @LastLoginAt
             WHERE id = @Id;";
 
         await using var conn = await CreateOpenConnectionAsync(ct);
@@ -110,6 +115,7 @@ public sealed class UserRepository : IUserRepository
             user.Email,
             Role = user.Role.ToString().ToUpperInvariant(),
             user.IsActive,
+            user.Department,
             user.LastLoginAt
         }, cancellationToken: ct));
     }
@@ -218,6 +224,7 @@ public sealed class UserRepository : IUserRepository
         string Role,
         bool IsActive,
         int FailedLoginCount,
+        string? Department,
         DateTime? LockedUntil,
         DateTime? LastLoginAt,
         DateTime CreatedAt)
@@ -231,6 +238,7 @@ public sealed class UserRepository : IUserRepository
             Role = Enum.TryParse<UserRole>(Role, true, out var r) ? r : UserRole.Viewer,
             IsActive = IsActive,
             FailedLoginCount = FailedLoginCount,
+            Department = Department,
             LockedUntil = LockedUntil,
             LastLoginAt = LastLoginAt,
             CreatedAt = CreatedAt
