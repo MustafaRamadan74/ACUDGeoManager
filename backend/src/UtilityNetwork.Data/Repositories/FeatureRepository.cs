@@ -706,22 +706,28 @@ public sealed class FeatureRepository : IFeatureRepository
         var features = new List<GeoJsonFeature>();
         foreach (var r in rows)
         {
-            var parsedGeom = JsonSerializer.Deserialize<GeoJsonGeometryRaw>(r.GeoJson);
-            if (parsedGeom != null)
+            if (string.IsNullOrWhiteSpace(r.GeoJson))
             {
-                var geometry = new GeoJsonGeometry(parsedGeom.Type, parsedGeom.Coordinates);
-                var properties = new Dictionary<string, object?>
-                {
-                    ["networkId"] = r.Network_Id,
-                    ["featureTypeCode"] = r.Feature_Type_Code,
-                    ["name"] = r.Name,
-                    ["status"] = r.Status,
-                    ["geometryKind"] = r.Kind,
-                    ["attributes"] = JsonSerializer.Deserialize<Dictionary<string, object?>>(r.Attributes ?? "{}")
-                };
-
-                features.Add(new GeoJsonFeature(r.Id, geometry, properties));
+                continue;
             }
+
+            using var doc = JsonDocument.Parse(r.GeoJson);
+            var root = doc.RootElement;
+            var geomType = root.TryGetProperty("type", out var typeProp) ? typeProp.GetString() ?? "" : "";
+            var coordinates = root.TryGetProperty("coordinates", out var coordsProp) ? (object)coordsProp.Clone() : (object)Array.Empty<int>();
+
+            var geometry = new GeoJsonGeometry(geomType, coordinates);
+            var properties = new Dictionary<string, object?>
+            {
+                ["networkId"] = r.Network_Id,
+                ["featureTypeCode"] = r.Feature_Type_Code,
+                ["name"] = r.Name,
+                ["status"] = r.Status,
+                ["geometryKind"] = r.Kind,
+                ["attributes"] = JsonSerializer.Deserialize<Dictionary<string, object?>>(string.IsNullOrWhiteSpace(r.Attributes) ? "{}" : r.Attributes)
+            };
+
+            features.Add(new GeoJsonFeature(r.Id, geometry, properties));
         }
 
         return new GeoJsonFeatureCollection(features);
