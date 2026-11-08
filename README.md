@@ -117,3 +117,120 @@ All endpoints follow RESTful conventions under `/api/v1`:
 - `/history/*`: Change set inspection, undo, and redo operations.
 - `/health`: Comprehensive system and database health checks.
 
+
+---
+
+## 6. Spatial Query Performance & PostGIS Execution Plans
+
+The platform provides dedicated spatial analysis endpoints optimized with PostGIS GiST indexing:
+1. `POST /api/v1/query/within`: Polygons are validated via `ST_MakeValid` and queried using `ST_Intersects(geom, @polygon)` leveraging 2D GiST geometry index `idx_points_geom`.
+2. `GET /api/v1/query/nearest`: High-performance KNN candidate retrieval via `<->` operator leveraging 4D geodesic geography index `idx_points_geog`, strictly ordered by geodesic distance in meters via `ST_Distance(geom::geography, @pt::geography)`.
+3. `GET /api/v1/workspaces/{id}/summary` & `GET /api/v1/networks/{id}/summary`: Real-time aggregated statistics including total features, breakdowns by layer and operational status, and metric sums calculated via PostGIS `ST_Length(geom::geography)` and `ST_Area(geom::geography)`.
+
+### Execution Plan Evidence: KNN Nearest Search (`/query/nearest`)
+
+#### Plan with Default Cost Model (ANALYZE, BUFFERS)
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id, feature_type_code, name, status, 
+       ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(31.748, 30.015), 4326)::geography) AS distance_meters
+FROM points
+WHERE geom::geography <-> ST_SetSRID(ST_MakePoint(31.748, 30.015), 4326)::geography < 2000
+ORDER BY geom::geography <-> ST_SetSRID(ST_MakePoint(31.748, 30.015), 4326)::geography
+LIMIT 10;
+```
+```text
+ Limit  (cost=0.14..173.67 rows=10 width=100) (actual time=18.108..18.241 rows=10 loops=1)
+   Buffers: shared hit=163
+   ->  Index Scan using idx_points_geog on points  (cost=0.14..1266.93 rows=73 width=100) (actual time=18.106..18.238 rows=10 loops=1)
+         Order By: ((geom)::geography <-> '0101000020E6100000736891ED7CBF3F40A4703D0AD7033E40'::geography)
+         Filter: (((geom)::geography <-> '0101000020E6100000736891ED7CBF3F40A4703D0AD7033E40'::geography) < '2000'::double precision)
+         Buffers: shared hit=163
+ Planning:
+   Buffers: shared hit=216
+ Planning Time: 13.346 ms
+ Execution Time: 18.446 ms
+```
+
+#### Plan with Sequential Scans Disabled (`SET enable_seqscan = off;`)
+```text
+SET
+ Limit  (cost=0.14..173.67 rows=10 width=100) (actual time=12.547..12.607 rows=10 loops=1)
+   Buffers: shared hit=163
+   ->  Index Scan using idx_points_geog on points  (cost=0.14..1266.93 rows=73 width=100) (actual time=12.546..12.605 rows=10 loops=1)
+         Order By: ((geom)::geography <-> '0101000020E6100000736891ED7CBF3F40A4703D0AD7033E40'::geography)
+         Filter: (((geom)::geography <-> '0101000020E6100000736891ED7CBF3F40A4703D0AD7033E40'::geography) < '2000'::double precision)
+         Buffers: shared hit=163
+ Planning:
+   Buffers: shared hit=216
+ Planning Time: 14.145 ms
+ Execution Time: 12.789 ms
+```
+*Key Finding*: The PostgreSQL planner utilizes the PostGIS GiST geography index `idx_points_geog` directly with KNN distance operator (`<->`), fetching exact top results in ~12.7 ms with 100% buffer cache hits.
+
+---
+
+### Execution Plan Evidence: Polygon Intersect Query (`/query/within`)
+
+#### Plan with Default Cost Model (ANALYZE, BUFFERS)
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id, feature_type_code, name, status, ST_AsGeoJSON(geom) AS geometry
+FROM points
+WHERE ST_Intersects(geom, ST_MakeValid(ST_MakeEnvelope(31.74, 30.01, 31.76, 30.02, 4326)))
+LIMIT 50;
+```
+```text
+ Limit  (cost=16.64..711.41 rows=50 width=116) (actual time=0.160..0.266 rows=50 loops=1)
+   Buffers: shared hit=7
+   ->  Bitmap Heap Scan on points  (cost=16.64..919.84 rows=65 width=116) (actual time=0.159..0.260 rows=50 loops=1)
+         Filter: st_intersects(geom, '0103000020E610000001000000050000003D0AD7A370BD3F40C3F5285C8F023E403D0AD7A370BD3F4085EB51B81E053E40C3F5285C8FC23F4085EB51B81E053E40C3F5285C8FC23F40C3F5285C8F023E403D0AD7A370BD3F40C3F5285C8F023E40'::geometry)
+         Heap Blocks: exact=4
+         Buffers: shared hit=7
+         ->  Bitmap Index Scan on idx_points_geom  (cost=0.00..16.63 rows=65 width=0) (actual time=0.100..0.101 rows=66 loops=1)
+               Index Cond: (geom && '0103000020E610000001000000050000003D0AD7A370BD3F40C3F5285C8F023E403D0AD7A370BD3F4085EB51B81E053E40C3F5285C8FC23F4085EB51B81E053E40C3F5285C8FC23F40C3F5285C8F023E403D0AD7A370BD3F40C3F5285C8F023E40'::geometry)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=257
+ Planning Time: 14.874 ms
+ Execution Time: 0.624 ms
+```
+
+#### Plan with Sequential Scans Disabled (`SET enable_seqscan = off;`)
+```text
+SET
+ Limit  (cost=16.64..711.41 rows=50 width=116) (actual time=0.059..0.140 rows=50 loops=1)
+   Buffers: shared hit=7
+   ->  Bitmap Heap Scan on points  (cost=16.64..919.84 rows=65 width=116) (actual time=0.058..0.136 rows=50 loops=1)
+         Filter: st_intersects(geom, '0103000020E610000001000000050000003D0AD7A370BD3F40C3F5285C8F023E403D0AD7A370BD3F4085EB51B81E053E40C3F5285C8FC23F4085EB51B81E053E40C3F5285C8FC23F40C3F5285C8F023E403D0AD7A370BD3F40C3F5285C8F023E40'::geometry)
+         Heap Blocks: exact=4
+         Buffers: shared hit=7
+         ->  Bitmap Index Scan on idx_points_geom  (cost=0.00..16.63 rows=65 width=0) (actual time=0.031..0.031 rows=66 loops=1)
+               Index Cond: (geom && '0103000020E610000001000000050000003D0AD7A370BD3F40C3F5285C8F023E403D0AD7A370BD3F4085EB51B81E053E40C3F5285C8FC23F4085EB51B81E053E40C3F5285C8FC23F40C3F5285C8F023E403D0AD7A370BD3F40C3F5285C8F023E40'::geometry)
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=257
+ Planning Time: 13.548 ms
+ Execution Time: 0.392 ms
+```
+*Key Finding*: The `idx_points_geom` spatial index resolves bounding box filtering (`&&`) at sub-millisecond latency (0.392 ms), followed by exact `ST_Intersects` checks on the candidates.
+
+---
+
+### Workspace Summary SQL Verification
+
+The summary endpoint (`/api/v1/workspaces/{id}/summary`) aggregates counts, total lengths, and total areas. Manual SQL execution on the New Administrative Capital Water Network (`a0000000-0000-0000-0000-000000000001`):
+
+```sql
+SELECT 
+    (SELECT COUNT(*) FROM points WHERE network_id = 'a0000000-0000-0000-0000-000000000001') +
+    (SELECT COUNT(*) FROM lines WHERE network_id = 'a0000000-0000-0000-0000-000000000001') +
+    (SELECT COUNT(*) FROM polygons WHERE network_id = 'a0000000-0000-0000-0000-000000000001') AS total_features,
+    (SELECT ROUND(SUM(ST_Length(geom::geography))::numeric, 2) FROM lines WHERE network_id = 'a0000000-0000-0000-0000-000000000001') AS total_length_m,
+    (SELECT ROUND(SUM(ST_Area(geom::geography))::numeric, 2) FROM polygons WHERE network_id = 'a0000000-0000-0000-0000-000000000001') AS total_area_sqm;
+```
+
+Result matches API response exactly:
+- `total_features`: `43`
+- `total_length_m`: `5727.50` meters
+- `total_area_sqm`: `2245839.17` square meters

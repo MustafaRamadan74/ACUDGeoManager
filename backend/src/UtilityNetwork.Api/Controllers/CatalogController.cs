@@ -26,7 +26,8 @@ public sealed class CatalogController : ControllerBase
     }
 
     [HttpGet("networks/{id:guid}/summary")]
-    [ProducesResponseType(typeof(NetworkSummaryDto), StatusCodes.Status200OK)]
+    [HttpGet("workspaces/{id:guid}/summary")]
+    [ProducesResponseType(typeof(RichWorkspaceSummaryDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetNetworkSummaryAsync(Guid id, CancellationToken cancellationToken)
     {

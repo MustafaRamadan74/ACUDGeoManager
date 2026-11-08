@@ -10,14 +10,19 @@ interface MapComponentProps {
   featureTypes: FeatureTypeDto[];
   visibleTypes: Set<string>;
   selectedFeatureId: string | null;
+  highlightedFeatureIds?: Set<string>;
   targetZoomFeature?: GeoJsonFeature | null;
+  fitFeaturesBounds?: GeoJsonFeature[] | null;
   canEdit: boolean;
+  isSelectingPolygon?: boolean;
   onSelectFeature: (feature: GeoJsonFeature) => void;
   onBboxChange: (bbox: [number, number, number, number]) => void;
+  onCenterChange?: (center: [number, number]) => void;
   onDrawingComplete?: (geometry: {
     kind: 'POINT' | 'LINE' | 'POLYGON';
     coordinates: any;
   }) => void;
+  onPolygonSelected?: (polygonGeoJson: any) => void;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -25,27 +30,48 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   featureTypes,
   visibleTypes,
   selectedFeatureId,
+  highlightedFeatureIds,
   targetZoomFeature,
+  fitFeaturesBounds,
   canEdit,
+  isSelectingPolygon = false,
   onSelectFeature,
   onBboxChange,
+  onCenterChange,
   onDrawingComplete,
+  onPolygonSelected,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const geojsonLayerRef = useRef<L.GeoJSON | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const onDrawingCompleteRef = useRef(onDrawingComplete);
+  const onPolygonSelectedRef = useRef(onPolygonSelected);
+  const isSelectingPolygonRef = useRef(isSelectingPolygon);
+  const onCenterChangeRef = useRef(onCenterChange);
 
   useEffect(() => {
     onDrawingCompleteRef.current = onDrawingComplete;
   }, [onDrawingComplete]);
 
+  useEffect(() => {
+    onPolygonSelectedRef.current = onPolygonSelected;
+  }, [onPolygonSelected]);
+
+  useEffect(() => {
+    isSelectingPolygonRef.current = isSelectingPolygon;
+  }, [isSelectingPolygon]);
+
+  useEffect(() => {
+    onCenterChangeRef.current = onCenterChange;
+  }, [onCenterChange]);
+
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Center on New Administrative Capital (NAC)
+    // Center on New Administrative Capital (NAC) - People's Square / Memorial
     const nacCenter: L.LatLngExpression = [30.015, 31.748];
     const map = L.map(mapContainerRef.current, {
       center: nacCenter,
@@ -104,30 +130,47 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         map.removeLayer(layer);
 
+        // Check if we are in polygon selection mode
+        if (isSelectingPolygonRef.current && (shape === 'Polygon' || shape === 'Rectangle')) {
+          if (onPolygonSelectedRef.current) {
+            onPolygonSelectedRef.current({
+              type: 'Polygon',
+              coordinates: coordinates,
+            });
+          }
+          return;
+        }
+
         if (onDrawingCompleteRef.current) {
           onDrawingCompleteRef.current({ kind, coordinates });
         }
       });
     }
 
-    // Initial bbox emit
-    const emitBbox = () => {
+    // Initial bbox and center emit
+    const emitBboxAndCenter = () => {
       const bounds = map.getBounds();
+      const center = map.getCenter();
+
       onBboxChange([
         bounds.getWest(),
         bounds.getSouth(),
         bounds.getEast(),
         bounds.getNorth(),
       ]);
+
+      if (onCenterChangeRef.current) {
+        onCenterChangeRef.current([center.lng, center.lat]);
+      }
     };
 
     map.on('moveend', () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = setTimeout(emitBbox, 250);
+      debounceTimerRef.current = setTimeout(emitBboxAndCenter, 250);
     });
 
     mapInstanceRef.current = map;
-    emitBbox();
+    emitBboxAndCenter();
 
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -135,6 +178,47 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // React to Polygon Selection Mode Toggle
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const pm = (map as any).pm;
+    if (!pm) return;
+
+    if (isSelectingPolygon) {
+      pm.enableDraw('Polygon', {
+        snappable: false,
+        continueDrawing: false,
+        templineStyle: { color: '#06B6D4', dashArray: '5, 5' },
+        hintlineStyle: { color: '#06B6D4', dashArray: '5, 5' },
+      });
+    } else {
+      if (pm.Draw?.Polygon?.enabled()) {
+        pm.disableDraw();
+      }
+    }
+  }, [isSelectingPolygon]);
+
+  // React to fitFeaturesBounds (auto zoom to query results)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !fitFeaturesBounds || fitFeaturesBounds.length === 0) return;
+
+    try {
+      const collection = {
+        type: 'FeatureCollection',
+        features: fitFeaturesBounds as any,
+      };
+      const tempLayer = L.geoJSON(collection as any);
+      const bounds = tempLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { maxZoom: 17, animate: true, padding: [50, 50] });
+      }
+    } catch (err) {
+      console.error('Failed to fit bounds:', err);
+    }
+  }, [fitFeaturesBounds]);
 
   // React to targetZoomFeature (click to zoom and select)
   useEffect(() => {
@@ -165,7 +249,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     const pm = (map as any).pm;
     if (!pm) return;
 
-    if (canEdit) {
+    if (canEdit && !isSelectingPolygon) {
       pm.addControls({
         position: 'topleft',
         drawMarker: true,
@@ -183,7 +267,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     } else {
       pm.removeControls();
     }
-  }, [canEdit]);
+  }, [canEdit, isSelectingPolygon]);
 
   // Update GeoJSON features on map
   useEffect(() => {
@@ -211,37 +295,78 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         pointToLayer: (feature, latlng) => {
           const typeCode = feature.properties?.featureTypeCode;
           const style = typeStyles.get(typeCode) || {};
-          const isSelected = feature.id === selectedFeatureId;
+          const fId = feature.id !== undefined && feature.id !== null ? String(feature.id) : '';
+          const isSelected = fId === selectedFeatureId;
+          const isHighlighted = Boolean(fId && highlightedFeatureIds?.has(fId));
+
+          let fillColor = style.fillColor || style.color || '#3B82F6';
+          let strokeColor = style.color || '#1E40AF';
+          let radius = style.radius || 7;
+          let weight = style.weight || 2;
+
+          if (isHighlighted) {
+            fillColor = '#06B6D4'; // Vibrant Cyan
+            strokeColor = '#FFFFFF';
+            radius = 11;
+            weight = 3;
+          } else if (isSelected) {
+            fillColor = '#F59E0B'; // Amber
+            strokeColor = '#FFFFFF';
+            radius = 10;
+            weight = 3;
+          }
 
           return L.circleMarker(latlng, {
-            radius: isSelected ? (style.radius || 7) + 3 : style.radius || 7,
-            fillColor: isSelected ? '#F59E0B' : style.fillColor || style.color || '#3B82F6',
-            color: isSelected ? '#FFFFFF' : style.color || '#1E40AF',
-            weight: isSelected ? 3 : style.weight || 2,
+            radius,
+            fillColor,
+            color: strokeColor,
+            weight,
             opacity: 1,
-            fillOpacity: style.fillOpacity || 0.85,
+            fillOpacity: isHighlighted || isSelected ? 0.95 : style.fillOpacity || 0.85,
           });
         },
         style: (feature) => {
           if (!feature) return {};
           const typeCode = feature.properties?.featureTypeCode;
           const style = typeStyles.get(typeCode) || {};
-          const isSelected = feature.id === selectedFeatureId;
+          const fId = feature.id !== undefined && feature.id !== null ? String(feature.id) : '';
+          const isSelected = fId === selectedFeatureId;
+          const isHighlighted = Boolean(fId && highlightedFeatureIds?.has(fId));
+
+          let strokeColor = style.color || '#2563EB';
+          let fillColor = style.fillColor || style.color || '#3B82F6';
+          let weight = style.weight || 3;
+          let fillOpacity = style.fillOpacity || 0.25;
+
+          if (isHighlighted) {
+            strokeColor = '#06B6D4';
+            fillColor = '#22D3EE';
+            weight = 5;
+            fillOpacity = 0.55;
+          } else if (isSelected) {
+            strokeColor = '#F59E0B';
+            fillColor = '#FBBF24';
+            weight = 5;
+            fillOpacity = 0.5;
+          }
 
           return {
-            color: isSelected ? '#F59E0B' : style.color || '#2563EB',
-            weight: isSelected ? (style.weight || 3) + 2 : style.weight || 3,
-            opacity: style.opacity || 0.9,
-            fillColor: isSelected ? '#FBBF24' : style.fillColor || style.color || '#3B82F6',
-            fillOpacity: isSelected ? 0.5 : style.fillOpacity || 0.25,
+            color: strokeColor,
+            weight,
+            opacity: 0.95,
+            fillColor,
+            fillOpacity,
             dashArray: style.dashArray || undefined,
           };
         },
         onEachFeature: (feature, layer) => {
           const name = feature.properties?.name || 'Feature';
           const type = feature.properties?.featureTypeCode || '';
+          const dist = feature.properties?.distanceMeters ?? (feature.properties as any)?.distance_meters;
+          const distStr = dist !== undefined ? `<div class="text-[10px] text-amber-400 font-mono font-bold mt-0.5">🎯 ${Number(dist).toFixed(1)}m</div>` : '';
+
           layer.bindTooltip(
-            `<div class="font-bold text-xs">${name}</div><div class="text-[10px] text-slate-500 font-mono">${type}</div>`,
+            `<div class="font-bold text-xs">${name}</div><div class="text-[10px] text-slate-500 font-mono">${type}</div>${distStr}`,
             { direction: 'top', offset: [0, -5], opacity: 0.9 }
           );
 
@@ -254,11 +379,21 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
     geoJsonLayer.addTo(map);
     geojsonLayerRef.current = geoJsonLayer;
-  }, [features, featureTypes, visibleTypes, selectedFeatureId]);
+  }, [features, featureTypes, visibleTypes, selectedFeatureId, highlightedFeatureIds]);
 
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainerRef} className="w-full h-full z-0" />
+
+      {/* Floating Banner when Polygon Selection is active */}
+      {isSelectingPolygon && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-sky-950/90 backdrop-blur-md border border-sky-500/50 text-white text-xs px-4 py-2 rounded-xl shadow-xl flex items-center gap-3 animate-pulse">
+          <div className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
+          <span className="font-medium">
+            انقر على الخريطة لرسم مضلع التحديد المكاني (Double click to finish)
+          </span>
+        </div>
+      )}
     </div>
   );
 };

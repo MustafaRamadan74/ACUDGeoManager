@@ -29,6 +29,7 @@ public static class DataServiceExtensions
 
         // Catalog and Features CRUD
         services.AddScoped<ICatalogRepository, CatalogRepository>();
+        services.AddScoped<ISpatialQueryRepository, SpatialQueryRepository>();
         services.AddSingleton<IFeatureValidationService, FeatureValidationService>();
         services.AddScoped<IFeatureRepository, FeatureRepository>();
         services.AddScoped<IFeatureService, FeatureService>();

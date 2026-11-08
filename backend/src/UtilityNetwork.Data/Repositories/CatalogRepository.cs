@@ -74,12 +74,12 @@ public sealed class CatalogRepository : ICatalogRepository
         return row?.ToDto();
     }
 
-    public async Task<NetworkSummaryDto?> GetNetworkSummaryAsync(Guid networkId, CancellationToken ct = default)
+    public async Task<RichWorkspaceSummaryDto?> GetNetworkSummaryAsync(Guid networkId, CancellationToken ct = default)
     {
         var network = await GetNetworkByIdAsync(networkId, ct);
         if (network == null) return null;
 
-        const string sql = @"
+        const string sqlCounts = @"
             SELECT feature_type_code AS FeatureTypeCode, status AS Status, count(*)::int AS Count
             FROM (
                 SELECT feature_type_code, status FROM points WHERE network_id = @networkId
@@ -91,24 +91,49 @@ public sealed class CatalogRepository : ICatalogRepository
             GROUP BY feature_type_code, status
             ORDER BY feature_type_code ASC, status ASC;";
 
+        const string sqlLines = @"
+            SELECT feature_type_code, COALESCE(SUM(ST_Length(geom::geography)), 0.0) AS length_m
+            FROM lines
+            WHERE network_id = @networkId
+            GROUP BY feature_type_code;";
+
+        const string sqlPolygons = @"
+            SELECT feature_type_code, COALESCE(SUM(ST_Area(geom::geography)), 0.0) AS area_sqm
+            FROM polygons
+            WHERE network_id = @networkId
+            GROUP BY feature_type_code;";
+
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
-        var rows = (await conn.QueryAsync<TypeStatusCountDto>(new CommandDefinition(sql, new { networkId }, cancellationToken: ct))).ToList();
 
-        var total = rows.Sum(r => r.Count);
-        var byType = rows.GroupBy(r => r.FeatureTypeCode)
+        var countRows = (await conn.QueryAsync<TypeStatusCountDto>(new CommandDefinition(sqlCounts, new { networkId }, cancellationToken: ct))).ToList();
+        var lineRows = (await conn.QueryAsync<(string FeatureTypeCode, double LengthM)>(new CommandDefinition(sqlLines, new { networkId }, cancellationToken: ct))).ToList();
+        var polygonRows = (await conn.QueryAsync<(string FeatureTypeCode, double AreaSqm)>(new CommandDefinition(sqlPolygons, new { networkId }, cancellationToken: ct))).ToList();
+
+        var total = countRows.Sum(r => r.Count);
+        var byType = countRows.GroupBy(r => r.FeatureTypeCode)
             .ToDictionary(g => g.Key, g => g.Sum(r => r.Count));
-        var byStatus = rows.GroupBy(r => r.Status)
+        var byStatus = countRows.GroupBy(r => r.Status)
             .ToDictionary(g => g.Key, g => g.Sum(r => r.Count));
 
-        return new NetworkSummaryDto(
-            NetworkId: network.Id,
-            NetworkName: network.Name,
-            NetworkDomain: network.Domain,
+        var lengthsByType = lineRows.ToDictionary(r => r.FeatureTypeCode, r => Math.Round(r.LengthM, 2));
+        var areasByType = polygonRows.ToDictionary(r => r.FeatureTypeCode, r => Math.Round(r.AreaSqm, 2));
+
+        var totalLength = lengthsByType.Values.Sum();
+        var totalArea = areasByType.Values.Sum();
+
+        return new RichWorkspaceSummaryDto(
+            WorkspaceId: network.Id,
+            WorkspaceName: network.Name,
+            Domain: network.Domain,
             TotalFeatures: total,
+            TotalLengthM: Math.Round(totalLength, 2),
+            TotalAreaSqm: Math.Round(totalArea, 2),
             CountsByType: byType,
             CountsByStatus: byStatus,
-            Details: rows);
+            LengthsByTypeM: lengthsByType,
+            AreasByTypeSqm: areasByType,
+            Details: countRows);
     }
 
     private sealed record FeatureTypeDbDto(

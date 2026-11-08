@@ -535,3 +535,4 @@ export const AttributeTable: React.FC<AttributeTableProps> = ({
     </div>
   );
 };
+

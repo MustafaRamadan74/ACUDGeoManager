@@ -1,10 +1,21 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { NetworkDto, NetworkSummaryDto } from '@/lib/types';
+import { NetworkDto, RichWorkspaceSummaryDto } from '@/lib/types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/authContext';
-import { BarChart3, X, Loader2, CheckCircle2, AlertTriangle, Clock, Ban, Layers, RefreshCw } from 'lucide-react';
+import {
+  BarChart3,
+  X,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Layers,
+  RefreshCw,
+  Ruler,
+  Maximize2,
+} from 'lucide-react';
 
 interface SummaryModalProps {
   network: NetworkDto | null;
@@ -16,7 +27,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
   const isAr = lang === 'ar';
 
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<NetworkSummaryDto | null>(null);
+  const [summary, setSummary] = useState<RichWorkspaceSummaryDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSummary = () => {
@@ -41,7 +52,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-3xl w-full shadow-2xl flex flex-col max-h-[88vh] overflow-hidden">
         {/* Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
           <div className="flex items-center gap-2.5">
@@ -50,7 +61,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
             </div>
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>{isAr ? 'ملخص شبكة المرافق الجغرافية' : 'Network Summary'}</span>
+                <span>{isAr ? 'ملخص شبكة المرافق الجغرافية والإحصاءات' : 'Network Summary & Spatial Statistics'}</span>
                 <span className="text-xs text-sky-400 font-mono font-normal">
                   ({network.name})
                 </span>
@@ -86,7 +97,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-sky-400" />
-              <span className="text-xs">{isAr ? 'جارٍ احتساب إحصاءات المعالم...' : 'Calculating statistics...'}</span>
+              <span className="text-xs">{isAr ? 'جارٍ احتساب إحصاءات المعالم والأطوال والمساحات...' : 'Calculating spatial statistics...'}</span>
             </div>
           ) : error ? (
             <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-200 text-xs">
@@ -94,10 +105,10 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
             </div>
           ) : summary ? (
             <>
-              {/* Stat Cards Grid */}
+              {/* Asset Count Stat Cards Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {/* Total Assets */}
-                <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 space-y-1">
+                <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-sky-400" />
                     <span>{isAr ? 'إجمالي المعالم' : 'Total Assets'}</span>
@@ -108,7 +119,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
                 </div>
 
                 {/* Active Assets */}
-                <div className="bg-emerald-950/20 p-3.5 rounded-xl border border-emerald-900/40 space-y-1">
+                <div className="bg-emerald-950/20 p-3 rounded-xl border border-emerald-900/40 space-y-1">
                   <span className="text-[11px] text-emerald-300 font-medium flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                     <span>{isAr ? 'نشط (ACTIVE)' : 'Active'}</span>
@@ -119,7 +130,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
                 </div>
 
                 {/* Planned Assets */}
-                <div className="bg-sky-950/20 p-3.5 rounded-xl border border-sky-900/40 space-y-1">
+                <div className="bg-sky-950/20 p-3 rounded-xl border border-sky-900/40 space-y-1">
                   <span className="text-[11px] text-sky-300 font-medium flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-sky-400" />
                     <span>{isAr ? 'مخطط (PLANNED)' : 'Planned'}</span>
@@ -130,7 +141,7 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
                 </div>
 
                 {/* Damaged Assets */}
-                <div className="bg-rose-950/20 p-3.5 rounded-xl border border-rose-900/40 space-y-1">
+                <div className="bg-rose-950/20 p-3 rounded-xl border border-rose-900/40 space-y-1">
                   <span className="text-[11px] text-rose-300 font-medium flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
                     <span>{isAr ? 'تالف / عطلان' : 'Damaged'}</span>
@@ -141,10 +152,57 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
                 </div>
               </div>
 
-              {/* Breakdown by Feature Type */}
+              {/* Spatial Geometry Metrics: Total Length & Area */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Total Pipe Length */}
+                <div className="bg-gradient-to-br from-slate-950 to-sky-950/30 p-3.5 rounded-xl border border-sky-800/40 space-y-1.5 shadow-md">
+                  <div className="flex items-center justify-between text-xs text-sky-400 font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Ruler className="w-4 h-4 text-sky-400" />
+                      <span>{isAr ? 'إجمالي أطوال خطوط الأنابيب والشبكة' : 'Total Line Network Length'}</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-900/40 border border-sky-700/50 text-sky-300">
+                      PostGIS ST_Length
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-white font-mono">
+                      {(summary.totalLengthM || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">{isAr ? 'متر' : 'm'}</span>
+                    <span className="text-xs font-mono text-sky-400 font-medium">
+                      ({((summary.totalLengthM || 0) / 1000).toFixed(2)} {isAr ? 'كم' : 'km'})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Total Area */}
+                <div className="bg-gradient-to-br from-slate-950 to-emerald-950/30 p-3.5 rounded-xl border border-emerald-800/40 space-y-1.5 shadow-md">
+                  <div className="flex items-center justify-between text-xs text-emerald-400 font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Maximize2 className="w-4 h-4 text-emerald-400" />
+                      <span>{isAr ? 'إجمالي مساحات المضلعات والمحطات' : 'Total Polygon Coverage Area'}</span>
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-900/40 border border-emerald-700/50 text-emerald-300">
+                      PostGIS ST_Area
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-white font-mono">
+                      {(summary.totalAreaSqm || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-400">{isAr ? 'م²' : 'm²'}</span>
+                    <span className="text-xs font-mono text-emerald-400 font-medium">
+                      ({((summary.totalAreaSqm || 0) / 10000).toFixed(2)} {isAr ? 'هكتار' : 'ha'})
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Breakdown by Feature Type with Length & Area */}
               <div className="space-y-3 pt-2">
                 <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                  <span>{isAr ? 'توزيع الأصول حسب نوع المعلم' : 'Assets by Feature Type'}</span>
+                  <span>{isAr ? 'توزيع الأصول حسب نوع المعلم ومقاييسها الجغرافية' : 'Assets by Feature Type & Spatial Metrics'}</span>
                   <span className="text-[11px] text-slate-400 font-normal">
                     {Object.keys(summary.countsByType).length} {isAr ? 'أنواع أصول' : 'asset types'}
                   </span>
@@ -153,10 +211,25 @@ export const SummaryModal: React.FC<SummaryModalProps> = ({ network, onClose }) 
                 <div className="bg-slate-950/60 rounded-xl p-3.5 border border-slate-800 space-y-2.5">
                   {Object.entries(summary.countsByType).map(([typeCode, count]) => {
                     const percent = summary.totalFeatures > 0 ? (count / summary.totalFeatures) * 100 : 0;
+                    const lengthM = summary.lengthsByTypeM?.[typeCode];
+                    const areaSqm = summary.areasByTypeSqm?.[typeCode];
+
                     return (
                       <div key={typeCode} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-mono text-sky-300 font-semibold">{typeCode}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sky-300 font-semibold">{typeCode}</span>
+                            {lengthM !== undefined && lengthM > 0 && (
+                              <span className="text-[10px] font-mono text-sky-400 bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-800/40">
+                                {lengthM.toLocaleString()} m
+                              </span>
+                            )}
+                            {areaSqm !== undefined && areaSqm > 0 && (
+                              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/40">
+                                {areaSqm.toLocaleString()} m²
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-white font-bold">{count}</span>
                             <span className="text-[11px] text-slate-500 font-mono">({percent.toFixed(1)}%)</span>

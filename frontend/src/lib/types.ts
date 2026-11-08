@@ -60,6 +60,8 @@ export interface GeoJsonProperties {
   flowDirection?: string | null;
   diameterMm?: number | null;
   material?: string | null;
+  distanceMeters?: number;
+  distance_meters?: number;
   attributes?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -175,7 +177,7 @@ export interface PagedResult<T> {
   hasPreviousPage: boolean;
 }
 
-// --- Network Summary ---
+// --- Network & Workspace Summary ---
 
 export interface TypeStatusCountDto {
   featureTypeCode: string;
@@ -183,15 +185,21 @@ export interface TypeStatusCountDto {
   count: number;
 }
 
-export interface NetworkSummaryDto {
-  networkId: string;
-  networkName: string;
-  networkDomain: string;
+export interface RichWorkspaceSummaryDto {
+  workspaceId: string;
+  workspaceName: string;
+  domain: string;
   totalFeatures: number;
+  totalLengthM: number;
+  totalAreaSqm: number;
   countsByType: Record<string, number>;
   countsByStatus: Record<string, number>;
+  lengthsByTypeM: Record<string, number>;
+  areasByTypeSqm: Record<string, number>;
   details: TypeStatusCountDto[];
 }
+
+export type NetworkSummaryDto = RichWorkspaceSummaryDto;
 
 // --- User Management ---
 
@@ -219,4 +227,24 @@ export interface UpdateUserRequest {
   role?: 'ADMIN' | 'EDITOR' | 'VIEWER';
   isActive?: boolean;
   networkIds?: string[];
+}
+
+// --- Spatial Queries ---
+
+export interface QueryWithinRequest {
+  networkId?: string | null;
+  featureTypes?: string[] | null;
+  status?: string | null;
+  polygon: any;
+  limit?: number;
+}
+
+export interface NearestQueryParams {
+  x: number;
+  y: number;
+  networkId?: string | null;
+  type?: string | null;
+  status?: string | null;
+  maxDistanceM?: number | null;
+  limit?: number;
 }

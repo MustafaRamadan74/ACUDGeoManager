@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/authContext';
 import { NetworkDto } from '@/lib/types';
 import {
@@ -12,6 +12,11 @@ import {
   Table,
   BarChart3,
   Users,
+  Compass,
+  Filter,
+  Navigation,
+  ChevronDown,
+  Pentagon,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -22,6 +27,13 @@ interface NavbarProps {
   isTableOpen: boolean;
   onOpenSummary: () => void;
   onOpenAdmin: () => void;
+  onSelectByPolygon: () => void;
+  isSelectingPolygon: boolean;
+  onOpenSelectByAttribute: () => void;
+  onOpenNearestModal: () => void;
+  spatialResultsCount?: number;
+  onToggleResultsDrawer?: () => void;
+  isResultsDrawerOpen?: boolean;
   searchSlot?: React.ReactNode;
 }
 
@@ -33,26 +45,59 @@ export const Navbar: React.FC<NavbarProps> = ({
   isTableOpen,
   onOpenSummary,
   onOpenAdmin,
+  onSelectByPolygon,
+  isSelectingPolygon,
+  onOpenSelectByAttribute,
+  onOpenNearestModal,
+  spatialResultsCount = 0,
+  onToggleResultsDrawer,
+  isResultsDrawerOpen = false,
   searchSlot,
 }) => {
   const { user, logout, lang, setLang } = useAuth();
   const isAr = lang === 'ar';
   const isAdmin = user?.role === 'ADMIN';
 
+  const [isSpatialMenuOpen, setIsSpatialMenuOpen] = useState(false);
+  const spatialMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (spatialMenuRef.current && !spatialMenuRef.current.contains(event.target as Node)) {
+        setIsSpatialMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const getRoleBadge = (role?: string) => {
     switch (role) {
       case 'ADMIN':
-        return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">👑 Admin</span>;
+        return (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            👑 Admin
+          </span>
+        );
       case 'EDITOR':
-        return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">✏️ Editor</span>;
+        return (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+            ✏️ Editor
+          </span>
+        );
       default:
-        return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40">👁️ Viewer</span>;
+        return (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+            👁️ Viewer
+          </span>
+        );
     }
   };
 
   return (
     <header className="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between z-20 shadow-md gap-3">
-      {/* Brand & Workspace switcher */}
+      {/* Brand & Network switcher */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20">
@@ -92,8 +137,97 @@ export const Navbar: React.FC<NavbarProps> = ({
         {searchSlot}
       </div>
 
-      {/* Workspace Tools: Table, Summary, Admin */}
+      {/* Spatial Tools, Table, Summary, Admin */}
       <div className="flex items-center gap-2">
+        {/* Spatial Query Tools Dropdown */}
+        <div className="relative" ref={spatialMenuRef}>
+          <button
+            onClick={() => setIsSpatialMenuOpen(!isSpatialMenuOpen)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition border ${
+              isSelectingPolygon || isSpatialMenuOpen
+                ? 'bg-sky-600 text-white border-sky-500 shadow-md shadow-sky-950/50'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+            title={isAr ? 'أدوات الاستعلام المكاني' : 'Spatial Query Tools'}
+          >
+            <Compass className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden lg:inline">{isAr ? 'الاستعلام المكاني' : 'Spatial Query'}</span>
+            <ChevronDown className="w-3 h-3 text-slate-400" />
+          </button>
+
+          {isSpatialMenuOpen && (
+            <div className="absolute right-0 rtl:right-auto rtl:left-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSpatialMenuOpen(false);
+                  onSelectByPolygon();
+                }}
+                className="w-full px-3 py-2 text-left rtl:text-right hover:bg-slate-800 text-slate-200 flex items-center gap-2.5 transition"
+              >
+                <Pentagon className="w-4 h-4 text-sky-400" />
+                <div>
+                  <div className="font-semibold">{isAr ? 'تحديد بمضلع (Within Polygon)' : 'Select by Polygon'}</div>
+                  <div className="text-[10px] text-slate-400">
+                    {isAr ? 'رسم مضلع واستخراج المعالم بداخله' : 'Draw polygon to query features inside'}
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSpatialMenuOpen(false);
+                  onOpenSelectByAttribute();
+                }}
+                className="w-full px-3 py-2 text-left rtl:text-right hover:bg-slate-800 text-slate-200 flex items-center gap-2.5 transition"
+              >
+                <Filter className="w-4 h-4 text-emerald-400" />
+                <div>
+                  <div className="font-semibold">{isAr ? 'تحديد بالخصائص (By Attribute)' : 'Select by Attribute'}</div>
+                  <div className="text-[10px] text-slate-400">
+                    {isAr ? 'تصفية طبقة بشروط منطقية' : 'Filter layer by SQL condition'}
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSpatialMenuOpen(false);
+                  onOpenNearestModal();
+                }}
+                className="w-full px-3 py-2 text-left rtl:text-right hover:bg-slate-800 text-slate-200 flex items-center gap-2.5 transition"
+              >
+                <Navigation className="w-4 h-4 text-amber-400" />
+                <div>
+                  <div className="font-semibold">{isAr ? 'البحث عن الأقرب (KNN Nearest)' : 'Find Nearest'}</div>
+                  <div className="text-[10px] text-slate-400">
+                    {isAr ? 'أقرب أصول لموقع أو مركز الخريطة' : 'Find nearest assets with distance in meters'}
+                  </div>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Spatial Results Pill Button (if results exist) */}
+        {spatialResultsCount > 0 && onToggleResultsDrawer && (
+          <button
+            onClick={onToggleResultsDrawer}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition border ${
+              isResultsDrawerOpen
+                ? 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-950/50'
+                : 'bg-amber-950/60 hover:bg-amber-900/60 text-amber-300 border-amber-800/80 animate-pulse'
+            }`}
+            title={isAr ? 'عرض نتائج الاستعلام المكاني' : 'Toggle Spatial Results'}
+          >
+            <span>🎯</span>
+            <span className="font-mono font-bold">{spatialResultsCount}</span>
+            <span className="hidden xl:inline">{isAr ? 'نتائج' : 'selected'}</span>
+          </button>
+        )}
+
         {/* Toggle Attribute Table */}
         <button
           onClick={onToggleTable}

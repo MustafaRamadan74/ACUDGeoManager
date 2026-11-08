@@ -14,9 +14,12 @@ import {
   AuditLogEntry,
   PagedResult,
   NetworkSummaryDto,
+  RichWorkspaceSummaryDto,
   UserResponse,
   CreateUserRequest,
   UpdateUserRequest,
+  QueryWithinRequest,
+  NearestQueryParams,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -184,8 +187,12 @@ export const api = {
     return await request<FeatureTypeDto[]>(path);
   },
 
-  getNetworkSummary: async (networkId: string): Promise<NetworkSummaryDto> => {
-    return await request<NetworkSummaryDto>(`/networks/${networkId}/summary`);
+  getNetworkSummary: async (networkId: string): Promise<RichWorkspaceSummaryDto> => {
+    return await request<RichWorkspaceSummaryDto>(`/networks/${networkId}/summary`);
+  },
+
+  getWorkspaceSummary: async (workspaceId: string): Promise<RichWorkspaceSummaryDto> => {
+    return await request<RichWorkspaceSummaryDto>(`/workspaces/${workspaceId}/summary`);
   },
 
   // Map Features
@@ -211,6 +218,27 @@ export const api = {
     return await request<GeoJsonFeatureCollection>(`/map/features?${params.toString()}`, {
       signal,
     });
+  },
+
+  // Spatial Queries
+  queryWithin: async (data: QueryWithinRequest): Promise<GeoJsonFeatureCollection> => {
+    return await request<GeoJsonFeatureCollection>('/query/within', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  queryNearest: async (params: NearestQueryParams): Promise<GeoJsonFeatureCollection> => {
+    const urlParams = new URLSearchParams();
+    urlParams.set('x', params.x.toString());
+    urlParams.set('y', params.y.toString());
+    if (params.networkId) urlParams.set('networkId', params.networkId);
+    if (params.type) urlParams.set('type', params.type);
+    if (params.status) urlParams.set('status', params.status);
+    if (params.maxDistanceM) urlParams.set('maxDistanceM', params.maxDistanceM.toString());
+    if (params.limit) urlParams.set('limit', params.limit.toString());
+
+    return await request<GeoJsonFeatureCollection>(`/query/nearest?${urlParams.toString()}`);
   },
 
   // Feature Points CRUD

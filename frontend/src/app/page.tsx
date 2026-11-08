@@ -16,6 +16,10 @@ import { AttributeTable } from '@/components/AttributeTable';
 import { SearchBar } from '@/components/SearchBar';
 import { SummaryModal } from '@/components/SummaryModal';
 import { UserAdminModal } from '@/components/UserAdminModal';
+import { SpatialSelectionModal } from '@/components/SpatialSelectionModal';
+import { NearestQueryModal } from '@/components/NearestQueryModal';
+import { SpatialResultsDrawer } from '@/components/SpatialResultsDrawer';
+import { useToast } from '@/components/Toast';
 import { Loader2 } from 'lucide-react';
 
 // Dynamic import with ssr: false for Leaflet map component
@@ -37,6 +41,7 @@ const MapComponent = dynamic(
 export default function GisPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading, canEdit, lang } = useAuth();
+  const { showSuccess, showError, showInfo } = useToast();
   const isAr = lang === 'ar';
 
   const [networks, setNetworks] = useState<NetworkDto[]>([]);
@@ -54,6 +59,16 @@ export default function GisPage() {
   const [isTableOpen, setIsTableOpen] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+
+  // Spatial Selection & Query State
+  const [isAttributeModalOpen, setIsAttributeModalOpen] = useState(false);
+  const [isNearestModalOpen, setIsNearestModalOpen] = useState(false);
+  const [isSelectingPolygon, setIsSelectingPolygon] = useState(false);
+  const [isResultsDrawerOpen, setIsResultsDrawerOpen] = useState(false);
+  const [spatialResults, setSpatialResults] = useState<GeoJsonFeature[]>([]);
+  const [spatialResultsTitle, setSpatialResultsTitle] = useState<string>('');
+  const [fitFeaturesBounds, setFitFeaturesBounds] = useState<GeoJsonFeature[] | null>(null);
+  const [currentMapCenter, setCurrentMapCenter] = useState<[number, number]>([31.748, 30.015]);
 
   const [createGeometry, setCreateGeometry] = useState<{
     kind: 'POINT' | 'LINE' | 'POLYGON';
@@ -73,6 +88,11 @@ export default function GisPage() {
     }
     return networks[0] || null;
   }, [networks, activeNetworkId]);
+
+  // Derived set of highlighted feature IDs for spatial results
+  const highlightedFeatureIds = useMemo(() => {
+    return new Set(spatialResults.map((f) => f.id));
+  }, [spatialResults]);
 
   // Authentication check
   useEffect(() => {
@@ -132,7 +152,7 @@ export default function GisPage() {
         .finally(() => {
           setIsLoadingFeatures(false);
         });
-    },
+  },
     [activeNetworkId, selectedFeature]
   );
 
@@ -168,7 +188,7 @@ export default function GisPage() {
     }
   };
 
-  // Zoom to feature handler (from table or search)
+  // Zoom to feature handler (from table, drawer or search)
   const handleZoomToFeature = (feature: GeoJsonFeature) => {
     setSelectedFeature(feature);
     setTargetZoomFeature(feature);
@@ -181,6 +201,100 @@ export default function GisPage() {
   }) => {
     if (!canEdit) return;
     setCreateGeometry(geometry);
+  };
+
+  // Polygon Selection Handler
+  const handleSelectByPolygonToggle = () => {
+    if (isSelectingPolygon) {
+      setIsSelectingPolygon(false);
+    } else {
+      setIsSelectingPolygon(true);
+      showInfo(
+        isAr ? 'وضع التحديد بمضلع نشط' : 'Polygon selection active',
+        isAr ? 'انقر على الخريطة لرسم مضلع الاستعلام' : 'Click on the map to draw selection polygon'
+      );
+    }
+  };
+
+  const handlePolygonSelected = async (polygonGeoJson: any) => {
+    setIsSelectingPolygon(false);
+    try {
+      showInfo(
+        isAr ? 'استعلام مكاني' : 'Spatial Query',
+        isAr ? 'جارٍ تنفيذ الاستعلام المكاني (ST_Intersects)...' : 'Executing spatial within query...'
+      );
+      const result = await api.queryWithin({
+        networkId: activeNetworkId || undefined,
+        polygon: polygonGeoJson,
+        limit: 500,
+      });
+
+      const resFeatures = result.features || [];
+      setSpatialResults(resFeatures);
+      const title = isAr
+        ? `المعالم داخل المضلع المحدد (${resFeatures.length} معلم)`
+        : `Features within polygon (${resFeatures.length} found)`;
+      setSpatialResultsTitle(title);
+      setIsResultsDrawerOpen(true);
+      setFitFeaturesBounds(resFeatures);
+
+      if (resFeatures.length > 0) {
+        showSuccess(
+          isAr ? 'تم استخراج المعالم' : 'Features Found',
+          isAr
+            ? `تم العثور على ${resFeatures.length} معلماً داخل المضلع`
+            : `Found ${resFeatures.length} features within polygon`
+        );
+      } else {
+        showInfo(
+          isAr ? 'نتيجة فارغة' : 'No Results',
+          isAr ? 'لا توجد أصول داخل المضلع المحدد' : 'No assets found within drawn polygon'
+        );
+      }
+    } catch (err: any) {
+      console.error('Spatial within query failed:', err);
+      showError(
+        isAr ? 'خطأ في الاستعلام' : 'Query Error',
+        err?.message || (isAr ? 'فشل تنفيذ استعلام المضلع' : 'Within polygon query failed')
+      );
+    }
+  };
+
+  // Spatial Results Handlers
+  const handleAttributeResults = (results: GeoJsonFeature[], desc: string) => {
+    setSpatialResults(results);
+    setSpatialResultsTitle(desc);
+    setIsResultsDrawerOpen(true);
+    setFitFeaturesBounds(results);
+    showSuccess(
+      isAr ? 'تحديد بالخصائص' : 'Select by Attribute',
+      isAr
+        ? `تم تحديد ${results.length} معلماً بنجاح`
+        : `Selected ${results.length} features successfully`
+    );
+  };
+
+  const handleNearestResults = (results: GeoJsonFeature[], desc: string) => {
+    setSpatialResults(results);
+    setSpatialResultsTitle(desc);
+    setIsResultsDrawerOpen(true);
+    setFitFeaturesBounds(results);
+    showSuccess(
+      isAr ? 'البحث عن الأقرب' : 'Find Nearest',
+      isAr
+        ? `تم العثور على أقرب ${results.length} أصول بنجاح`
+        : `Found nearest ${results.length} assets successfully`
+    );
+  };
+
+  const handleClearSpatialSelection = () => {
+    setSpatialResults([]);
+    setIsResultsDrawerOpen(false);
+    setFitFeaturesBounds(null);
+    showInfo(
+      isAr ? 'مسح التحديد' : 'Selection Cleared',
+      isAr ? 'تم مسح نتائج الاستعلام المكاني' : 'Spatial selection cleared'
+    );
   };
 
   // Callback after feature is created or edited
@@ -198,6 +312,8 @@ export default function GisPage() {
     if (currentBboxRef.current) {
       fetchFeatures(currentBboxRef.current);
     }
+    // Also remove from spatial results if present
+    setSpatialResults((prev) => prev.filter((f) => f.id !== deletedId));
   };
 
   if (authLoading || !isAuthenticated) {
@@ -219,6 +335,13 @@ export default function GisPage() {
         isTableOpen={isTableOpen}
         onOpenSummary={() => setIsSummaryOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
+        onSelectByPolygon={handleSelectByPolygonToggle}
+        isSelectingPolygon={isSelectingPolygon}
+        onOpenSelectByAttribute={() => setIsAttributeModalOpen(true)}
+        onOpenNearestModal={() => setIsNearestModalOpen(true)}
+        spatialResultsCount={spatialResults.length}
+        onToggleResultsDrawer={() => setIsResultsDrawerOpen(!isResultsDrawerOpen)}
+        isResultsDrawerOpen={isResultsDrawerOpen}
         searchSlot={
           <SearchBar
             features={features}
@@ -256,11 +379,29 @@ export default function GisPage() {
             featureTypes={featureTypes}
             visibleTypes={visibleTypes}
             selectedFeatureId={selectedFeature?.id || null}
+            highlightedFeatureIds={highlightedFeatureIds}
             targetZoomFeature={targetZoomFeature}
+            fitFeaturesBounds={fitFeaturesBounds}
             canEdit={canEdit}
+            isSelectingPolygon={isSelectingPolygon}
             onSelectFeature={setSelectedFeature}
             onBboxChange={handleBboxChange}
+            onCenterChange={setCurrentMapCenter}
             onDrawingComplete={handleDrawingComplete}
+            onPolygonSelected={handlePolygonSelected}
+          />
+
+          {/* Bottom Spatial Results Drawer */}
+          <SpatialResultsDrawer
+            isOpen={isResultsDrawerOpen}
+            onClose={() => setIsResultsDrawerOpen(false)}
+            title={spatialResultsTitle}
+            features={spatialResults}
+            featureTypes={featureTypes}
+            selectedFeatureId={selectedFeature?.id || null}
+            onSelectFeature={setSelectedFeature}
+            onZoomToFeature={handleZoomToFeature}
+            onClear={handleClearSpatialSelection}
           />
 
           {/* Bottom Attribute Table Drawer */}
@@ -286,6 +427,25 @@ export default function GisPage() {
           />
         )}
       </div>
+
+      {/* Select by Attribute Modal */}
+      <SpatialSelectionModal
+        isOpen={isAttributeModalOpen}
+        onClose={() => setIsAttributeModalOpen(false)}
+        featureTypes={featureTypes}
+        features={features}
+        onResults={handleAttributeResults}
+      />
+
+      {/* KNN Nearest Search Modal */}
+      <NearestQueryModal
+        isOpen={isNearestModalOpen}
+        onClose={() => setIsNearestModalOpen(false)}
+        activeNetworkId={activeNetworkId}
+        featureTypes={featureTypes}
+        currentCenter={currentMapCenter}
+        onResults={handleNearestResults}
+      />
 
       {/* Feature Create Modal */}
       {createGeometry && (
