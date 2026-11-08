@@ -27,6 +27,12 @@ public static class DataServiceExtensions
         services.AddScoped<IHistoryRepository, HistoryRepository>();
         services.AddScoped<IHistoryService, HistoryService>();
 
+        // Catalog and Features CRUD
+        services.AddScoped<ICatalogRepository, CatalogRepository>();
+        services.AddSingleton<IFeatureValidationService, FeatureValidationService>();
+        services.AddScoped<IFeatureRepository, FeatureRepository>();
+        services.AddScoped<IFeatureService, FeatureService>();
+
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);
 
