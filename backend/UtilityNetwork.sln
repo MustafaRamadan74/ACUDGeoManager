@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UtilityNetwork.Tests", "tests\UtilityNetwork.Tests\UtilityNetwork.Tests.csproj", "{CFA7E308-4AA3-45A2-A958-7016EB9061B4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UtilityNetwork.Seed", "src\UtilityNetwork.Seed\UtilityNetwork.Seed.csproj", "{00E07977-B231-4836-849E-2085B3898408}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{CFA7E308-4AA3-45A2-A958-7016EB9061B4}.Release|x64.Build.0 = Release|Any CPU
 		{CFA7E308-4AA3-45A2-A958-7016EB9061B4}.Release|x86.ActiveCfg = Release|Any CPU
 		{CFA7E308-4AA3-45A2-A958-7016EB9061B4}.Release|x86.Build.0 = Release|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Debug|x64.Build.0 = Debug|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Debug|x86.Build.0 = Debug|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Release|Any CPU.Build.0 = Release|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Release|x64.ActiveCfg = Release|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Release|x64.Build.0 = Release|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Release|x86.ActiveCfg = Release|Any CPU
+		{00E07977-B231-4836-849E-2085B3898408}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +96,6 @@ Global
 		{67BC3D9F-629C-443C-A535-806D80A71A92} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{600721DD-99E8-4582-B25E-A4EC21CF0589} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{CFA7E308-4AA3-45A2-A958-7016EB9061B4} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{00E07977-B231-4836-849E-2085B3898408} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

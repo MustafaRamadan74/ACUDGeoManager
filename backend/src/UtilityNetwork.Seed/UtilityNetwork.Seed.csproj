@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UtilityNetwork.Core\UtilityNetwork.Core.csproj" />
+    <ProjectReference Include="..\UtilityNetwork.Data\UtilityNetwork.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="NetTopologySuite" />
+  </ItemGroup>
+
+</Project>
