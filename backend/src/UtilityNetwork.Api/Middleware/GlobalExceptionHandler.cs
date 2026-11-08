@@ -4,6 +4,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
+using UtilityNetwork.Core.Exceptions;
 
 namespace UtilityNetwork.Api.Middleware;
 
@@ -57,13 +58,25 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
                 authEx.Message,
                 null
             ),
+            OptimisticConcurrencyException concEx => (
+                StatusCodes.Status409Conflict,
+                "Concurrency Conflict",
+                concEx.Message,
+                null
+            ),
+            KeyNotFoundException notFoundEx => (
+                StatusCodes.Status404NotFound,
+                "Not Found",
+                notFoundEx.Message,
+                null
+            ),
             PostgresException pgEx when pgEx.SqlState == "23505" => (
                 StatusCodes.Status409Conflict,
                 "Resource Conflict",
                 "A resource with identical unique attributes already exists.",
                 null
             ),
-            PostgresException pgEx when pgEx.SqlState is "23514" or "23502" or "23503" or "22023" => (
+            PostgresException pgEx when pgEx.SqlState is "23514" or "23502" or "23503" or "22023" or "22P02" => (
                 StatusCodes.Status400BadRequest,
                 "Database Constraint Violation",
                 "The requested operation violates database integrity constraints.",
