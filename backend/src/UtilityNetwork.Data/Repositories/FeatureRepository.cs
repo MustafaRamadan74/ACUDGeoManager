@@ -711,23 +711,25 @@ public sealed class FeatureRepository : IFeatureRepository
                 continue;
             }
 
-            using var doc = JsonDocument.Parse(r.GeoJson);
-            var root = doc.RootElement;
-            var geomType = root.TryGetProperty("type", out var typeProp) ? typeProp.GetString() ?? "" : "";
-            var coordinates = root.TryGetProperty("coordinates", out var coordsProp) ? (object)coordsProp.Clone() : (object)Array.Empty<int>();
-
-            var geometry = new GeoJsonGeometry(geomType, coordinates);
-            var properties = new Dictionary<string, object?>
+            var geomNode = System.Text.Json.Nodes.JsonNode.Parse(r.GeoJson);
+            if (geomNode != null)
             {
-                ["networkId"] = r.Network_Id,
-                ["featureTypeCode"] = r.Feature_Type_Code,
-                ["name"] = r.Name,
-                ["status"] = r.Status,
-                ["geometryKind"] = r.Kind,
-                ["attributes"] = JsonSerializer.Deserialize<Dictionary<string, object?>>(string.IsNullOrWhiteSpace(r.Attributes) ? "{}" : r.Attributes)
-            };
+                var geomType = geomNode["type"]?.GetValue<string>() ?? "";
+                var coordinates = geomNode["coordinates"];
+                var geometry = new GeoJsonGeometry(geomType, coordinates!);
 
-            features.Add(new GeoJsonFeature(r.Id, geometry, properties));
+                var properties = new Dictionary<string, object?>
+                {
+                    ["networkId"] = r.Network_Id,
+                    ["featureTypeCode"] = r.Feature_Type_Code,
+                    ["name"] = r.Name,
+                    ["status"] = r.Status,
+                    ["geometryKind"] = r.Kind,
+                    ["attributes"] = System.Text.Json.Nodes.JsonNode.Parse(string.IsNullOrWhiteSpace(r.Attributes) ? "{}" : r.Attributes)
+                };
+
+                features.Add(new GeoJsonFeature(r.Id, geometry, properties));
+            }
         }
 
         return new GeoJsonFeatureCollection(features);
@@ -871,3 +873,4 @@ public sealed class FeatureRepository : IFeatureRepository
     private sealed record GeoJsonGeometryRaw(string Type, JsonElement Coordinates);
     private sealed record GeoJsonCoordsRaw<T>(string Type, T[] Coordinates);
 }
+
