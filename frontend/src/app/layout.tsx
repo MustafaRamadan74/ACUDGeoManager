@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/lib/authContext';
+import { ToastProvider } from '@/components/Toast';
 
 export const metadata: Metadata = {
   title: 'ACUDGeoManager | منصة إدارة المرافق الجغرافية',
@@ -16,10 +17,11 @@ export default function RootLayout({
     <html lang="ar" dir="rtl">
       <body className="h-screen w-screen overflow-hidden bg-slate-50 text-slate-900 antialiased">
         <AuthProvider>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
-

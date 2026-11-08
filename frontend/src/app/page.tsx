@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
@@ -9,6 +9,9 @@ import { FeatureTypeDto, GeoJsonFeature, NetworkDto } from '@/lib/types';
 import { Navbar } from '@/components/Navbar';
 import { Sidebar } from '@/components/Sidebar';
 import { FeatureDetails } from '@/components/FeatureDetails';
+import { FeatureEditModal } from '@/components/FeatureEditModal';
+import { DeleteConfirmModal } from '@/components/DeleteConfirmModal';
+import { FeatureHistoryModal } from '@/components/FeatureHistoryModal';
 import { Loader2 } from 'lucide-react';
 
 // Dynamic import with ssr: false for Leaflet map component
@@ -29,7 +32,7 @@ const MapComponent = dynamic(
 
 export default function GisPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading, lang } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, canEdit, lang } = useAuth();
   const isAr = lang === 'ar';
 
   const [networks, setNetworks] = useState<NetworkDto[]>([]);
@@ -41,6 +44,15 @@ export default function GisPage() {
   const [selectedFeature, setSelectedFeature] = useState<GeoJsonFeature | null>(null);
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
   const [isLimitReached, setIsLimitReached] = useState(false);
+
+  // Modals state
+  const [createGeometry, setCreateGeometry] = useState<{
+    kind: 'POINT' | 'LINE' | 'POLYGON';
+    coordinates: any;
+  } | null>(null);
+  const [editingFeature, setEditingFeature] = useState<GeoJsonFeature | null>(null);
+  const [deletingFeature, setDeletingFeature] = useState<GeoJsonFeature | null>(null);
+  const [historyFeature, setHistoryFeature] = useState<GeoJsonFeature | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentBboxRef = useRef<[number, number, number, number] | null>(null);
@@ -69,43 +81,55 @@ export default function GisPage() {
   }, [isAuthenticated]);
 
   // Fetch Features for BBox
-  const fetchFeatures = (bbox: [number, number, number, number]) => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+  const fetchFeatures = useCallback(
+    (bbox: [number, number, number, number]) => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
 
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-    setIsLoadingFeatures(true);
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+      setIsLoadingFeatures(true);
 
-    const netIds = activeNetworkId ? [activeNetworkId] : undefined;
+      const netIds = activeNetworkId ? [activeNetworkId] : undefined;
 
-    api.getMapFeatures(bbox, netIds, undefined, 1000, abortController.signal)
-      .then((collection) => {
-        setFeatures(collection.features || []);
-        setIsLimitReached((collection.features || []).length >= 1000);
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
-          console.error('Failed to fetch map features:', err);
-        }
-      })
-      .finally(() => {
-        setIsLoadingFeatures(false);
-      });
-  };
+      api
+        .getMapFeatures(bbox, netIds, undefined, 1000, abortController.signal)
+        .then((collection) => {
+          setFeatures(collection.features || []);
+          setIsLimitReached((collection.features || []).length >= 1000);
+
+          // Update selected feature reference if it's currently selected
+          if (selectedFeature) {
+            const found = (collection.features || []).find((f) => f.id === selectedFeature.id);
+            if (found) {
+              setSelectedFeature(found);
+            }
+          }
+        })
+        .catch((err) => {
+          if (err.name !== 'AbortError') {
+            console.error('Failed to fetch map features:', err);
+          }
+        })
+        .finally(() => {
+          setIsLoadingFeatures(false);
+        });
+    },
+    [activeNetworkId, selectedFeature]
+  );
 
   const handleBboxChange = (bbox: [number, number, number, number]) => {
     currentBboxRef.current = bbox;
     fetchFeatures(bbox);
   };
 
-  // When active network filter changes, refetch
+  // Refetch when active network changes
   useEffect(() => {
     if (currentBboxRef.current) {
       fetchFeatures(currentBboxRef.current);
     }
-  }, [activeNetworkId]);
+  }, [activeNetworkId, fetchFeatures]);
 
   const handleToggleType = (typeCode: string) => {
     setVisibleTypes((prev) => {
@@ -124,6 +148,32 @@ export default function GisPage() {
       setVisibleTypes(new Set(featureTypes.map((f) => f.code)));
     } else {
       setVisibleTypes(new Set());
+    }
+  };
+
+  // Callback when a new feature is drawn using Geoman
+  const handleDrawingComplete = (geometry: {
+    kind: 'POINT' | 'LINE' | 'POLYGON';
+    coordinates: any;
+  }) => {
+    if (!canEdit) return;
+    setCreateGeometry(geometry);
+  };
+
+  // Callback after feature is created or edited
+  const handleFeatureSaved = () => {
+    if (currentBboxRef.current) {
+      fetchFeatures(currentBboxRef.current);
+    }
+  };
+
+  // Callback after feature is deleted
+  const handleFeatureDeleted = (deletedId: string) => {
+    if (selectedFeature?.id === deletedId) {
+      setSelectedFeature(null);
+    }
+    if (currentBboxRef.current) {
+      fetchFeatures(currentBboxRef.current);
     }
   };
 
@@ -172,8 +222,10 @@ export default function GisPage() {
             featureTypes={featureTypes}
             visibleTypes={visibleTypes}
             selectedFeatureId={selectedFeature?.id || null}
+            canEdit={canEdit}
             onSelectFeature={setSelectedFeature}
             onBboxChange={handleBboxChange}
+            onDrawingComplete={handleDrawingComplete}
           />
         </main>
 
@@ -182,10 +234,53 @@ export default function GisPage() {
           <FeatureDetails
             feature={selectedFeature}
             onClose={() => setSelectedFeature(null)}
+            onEdit={(f) => setEditingFeature(f)}
+            onDelete={(f) => setDeletingFeature(f)}
+            onShowHistory={(f) => setHistoryFeature(f)}
           />
         )}
       </div>
+
+      {/* Feature Create Modal (opened after Leaflet-Geoman drawing) */}
+      {createGeometry && (
+        <FeatureEditModal
+          mode="create"
+          initialGeometry={createGeometry}
+          networks={networks}
+          featureTypes={featureTypes}
+          onClose={() => setCreateGeometry(null)}
+          onSaved={handleFeatureSaved}
+        />
+      )}
+
+      {/* Feature Edit Modal */}
+      {editingFeature && (
+        <FeatureEditModal
+          mode="edit"
+          feature={editingFeature}
+          networks={networks}
+          featureTypes={featureTypes}
+          onClose={() => setEditingFeature(null)}
+          onSaved={handleFeatureSaved}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingFeature && (
+        <DeleteConfirmModal
+          feature={deletingFeature}
+          onClose={() => setDeletingFeature(null)}
+          onDeleted={handleFeatureDeleted}
+        />
+      )}
+
+      {/* Feature Audit History Modal */}
+      {historyFeature && (
+        <FeatureHistoryModal
+          feature={historyFeature}
+          onClose={() => setHistoryFeature(null)}
+        />
+      )}
     </div>
   );
 }
-

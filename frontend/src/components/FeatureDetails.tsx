@@ -3,16 +3,22 @@
 import React from 'react';
 import { useAuth } from '@/lib/authContext';
 import { GeoJsonFeature } from '@/lib/types';
-import { X, MapPin, Activity, Info, Lock } from 'lucide-react';
+import { X, MapPin, Activity, Info, Lock, Edit3, Trash2, History } from 'lucide-react';
 
 interface FeatureDetailsProps {
   feature: GeoJsonFeature | null;
   onClose: () => void;
+  onEdit?: (feature: GeoJsonFeature) => void;
+  onDelete?: (feature: GeoJsonFeature) => void;
+  onShowHistory?: (feature: GeoJsonFeature) => void;
 }
 
 export const FeatureDetails: React.FC<FeatureDetailsProps> = ({
   feature,
   onClose,
+  onEdit,
+  onDelete,
+  onShowHistory,
 }) => {
   const { lang, canEdit } = useAuth();
   const isAr = lang === 'ar';
@@ -51,6 +57,11 @@ export const FeatureDetails: React.FC<FeatureDetailsProps> = ({
             <span className="text-[11px] text-slate-400 font-mono">
               {geometry.type}
             </span>
+            {properties.version !== undefined && (
+              <span className="text-[10px] text-amber-400 font-mono bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/50">
+                v{properties.version}
+              </span>
+            )}
           </div>
           <h2 className="text-sm font-bold text-white leading-tight">
             {properties.name}
@@ -62,6 +73,37 @@ export const FeatureDetails: React.FC<FeatureDetailsProps> = ({
         >
           <X className="w-5 h-5" />
         </button>
+      </div>
+
+      {/* Action Toolbar */}
+      <div className="p-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between gap-2">
+        <button
+          onClick={() => onShowHistory?.(feature)}
+          className="flex-1 py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium flex items-center justify-center gap-1.5 transition border border-slate-700/60"
+        >
+          <History className="w-3.5 h-3.5 text-sky-400" />
+          <span>{isAr ? 'السجل' : 'History'}</span>
+        </button>
+
+        {canEdit && (
+          <>
+            <button
+              onClick={() => onEdit?.(feature)}
+              className="flex-1 py-1.5 px-2 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 text-xs font-medium flex items-center justify-center gap-1.5 transition border border-sky-500/40"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>{isAr ? 'تعديل' : 'Edit'}</span>
+            </button>
+
+            <button
+              onClick={() => onDelete?.(feature)}
+              className="py-1.5 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-medium flex items-center justify-center transition border border-rose-500/40"
+              title={isAr ? 'حذف المعلم' : 'Delete feature'}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Body */}
@@ -85,6 +127,48 @@ export const FeatureDetails: React.FC<FeatureDetailsProps> = ({
           <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-800/60 text-purple-200 text-xs flex items-center gap-2.5">
             <Lock className="w-4 h-4 text-purple-400 flex-shrink-0" />
             <span>{isAr ? 'حساب مشاهد: وضع القراءة فقط دون أدوات تحرير.' : 'Viewer role: Read-only access without edit controls.'}</span>
+          </div>
+        )}
+
+        {/* Feature Geometry Properties */}
+        {(properties.diameterMm || properties.flowDirection || properties.material || properties.isOpen !== undefined) && (
+          <div className="space-y-1.5">
+            <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-sky-400" />
+              <span>{isAr ? 'الخصائص الهندسية' : 'Engineering Properties'}</span>
+            </h3>
+
+            <div className="rounded-xl border border-slate-800 overflow-hidden divide-y divide-slate-800 bg-slate-950/40">
+              {properties.isOpen !== undefined && (
+                <div className="px-3 py-2 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 text-[11px]">{isAr ? 'مفتوح للتدفق' : 'Flow Open'}</span>
+                  <span className={`font-semibold ${properties.isOpen ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {properties.isOpen ? (isAr ? 'نعم (مفتوح)' : 'Yes') : (isAr ? 'لا (مغلق)' : 'No')}
+                  </span>
+                </div>
+              )}
+
+              {properties.flowDirection && (
+                <div className="px-3 py-2 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 text-[11px]">{isAr ? 'اتجاه السريان' : 'Flow Direction'}</span>
+                  <span className="font-mono text-slate-200 text-[11px]">{properties.flowDirection}</span>
+                </div>
+              )}
+
+              {properties.diameterMm && (
+                <div className="px-3 py-2 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 text-[11px]">{isAr ? 'القطر' : 'Diameter'}</span>
+                  <span className="font-semibold text-slate-200">{properties.diameterMm} mm</span>
+                </div>
+              )}
+
+              {properties.material && (
+                <div className="px-3 py-2 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 text-[11px]">{isAr ? 'مادة الصنع' : 'Material'}</span>
+                  <span className="font-semibold text-slate-200">{properties.material}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -116,4 +200,3 @@ export const FeatureDetails: React.FC<FeatureDetailsProps> = ({
     </div>
   );
 };
-

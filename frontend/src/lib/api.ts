@@ -1,4 +1,19 @@
-import { AuthResponseDto, FeatureTypeDto, GeoJsonFeatureCollection, NetworkDto, ProblemDetails, UserDto } from './types';
+import {
+  AuthResponseDto,
+  FeatureTypeDto,
+  GeoJsonFeatureCollection,
+  NetworkDto,
+  ProblemDetails,
+  UserDto,
+  CreatePointRequest,
+  UpdatePointRequest,
+  CreateLineRequest,
+  UpdateLineRequest,
+  CreatePolygonRequest,
+  UpdatePolygonRequest,
+  AuditLogEntry,
+  PagedResult,
+} from './types';
 
 let inMemoryToken: string | null = null;
 let isRefreshing = false;
@@ -189,5 +204,78 @@ export const api = {
       signal,
     });
   },
-};
 
+  // Feature Points CRUD
+  createPoint: async (data: CreatePointRequest): Promise<any> => {
+    return await request<any>('/points', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updatePoint: async (id: string, data: UpdatePointRequest): Promise<any> => {
+    return await request<any>(`/points/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deletePoint: async (id: string, version: number): Promise<void> => {
+    await request<void>(`/points/${id}?version=${version}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Feature Lines CRUD
+  createLine: async (data: CreateLineRequest): Promise<any> => {
+    return await request<any>('/lines', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateLine: async (id: string, data: UpdateLineRequest): Promise<any> => {
+    return await request<any>(`/lines/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteLine: async (id: string, version: number): Promise<void> => {
+    await request<void>(`/lines/${id}?version=${version}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Feature Polygons CRUD
+  createPolygon: async (data: CreatePolygonRequest): Promise<any> => {
+    return await request<any>('/polygons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updatePolygon: async (id: string, data: UpdatePolygonRequest): Promise<any> => {
+    return await request<any>(`/polygons/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deletePolygon: async (id: string, version: number): Promise<void> => {
+    await request<void>(`/polygons/${id}?version=${version}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Feature History / Audit
+  getFeatureHistory: async (
+    featureId: string,
+    page = 1,
+    pageSize = 50
+  ): Promise<PagedResult<AuditLogEntry>> => {
+    return await request<PagedResult<AuditLogEntry>>(
+      `/history?featureId=${featureId}&page=${page}&pageSize=${pageSize}`
+    );
+  },
+};

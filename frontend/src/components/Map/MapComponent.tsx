@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
+import '@geoman-io/leaflet-geoman-free';
 import { FeatureTypeDto, GeoJsonFeature } from '@/lib/types';
 
 interface MapComponentProps {
@@ -9,8 +10,13 @@ interface MapComponentProps {
   featureTypes: FeatureTypeDto[];
   visibleTypes: Set<string>;
   selectedFeatureId: string | null;
+  canEdit: boolean;
   onSelectFeature: (feature: GeoJsonFeature) => void;
   onBboxChange: (bbox: [number, number, number, number]) => void;
+  onDrawingComplete?: (geometry: {
+    kind: 'POINT' | 'LINE' | 'POLYGON';
+    coordinates: any;
+  }) => void;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -18,13 +24,20 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   featureTypes,
   visibleTypes,
   selectedFeatureId,
+  canEdit,
   onSelectFeature,
   onBboxChange,
+  onDrawingComplete,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const geojsonLayerRef = useRef<L.GeoJSON | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const onDrawingCompleteRef = useRef(onDrawingComplete);
+
+  useEffect(() => {
+    onDrawingCompleteRef.current = onDrawingComplete;
+  }, [onDrawingComplete]);
 
   // Initialize Map
   useEffect(() => {
@@ -46,6 +59,59 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | ACUD',
       maxZoom: 19,
     }).addTo(map);
+
+    // Leaflet-Geoman Snapping & Drawing Configuration
+    const pm = (map as any).pm;
+    if (pm) {
+      // Global snapping options: snap to existing vertices and midpoints within 15px
+      pm.setGlobalOptions({
+        snapping: true,
+        snapDistance: 15,
+        allowSelfIntersection: false,
+      });
+
+      // Handle drawing completion
+      map.on('pm:create', (e: any) => {
+        const { shape, layer } = e;
+        if (!layer) return;
+
+        let kind: 'POINT' | 'LINE' | 'POLYGON' = 'POINT';
+        let coordinates: any;
+
+        if (shape === 'Marker') {
+          kind = 'POINT';
+          const latlng = layer.getLatLng();
+          coordinates = [latlng.lng, latlng.lat];
+        } else if (shape === 'Line') {
+          kind = 'LINE';
+          const latlngs = layer.getLatLngs();
+          coordinates = (latlngs as any[]).map((ll) => [ll.lng, ll.lat]);
+        } else if (shape === 'Polygon' || shape === 'Rectangle') {
+          kind = 'POLYGON';
+          const rawLatlngs = layer.getLatLngs();
+          const ring = Array.isArray(rawLatlngs[0]) ? rawLatlngs[0] : rawLatlngs;
+          const ringCoords = ring.map((ll: any) => [ll.lng, ll.lat]);
+
+          // Close polygon ring if needed
+          if (ringCoords.length > 0) {
+            const first = ringCoords[0];
+            const last = ringCoords[ringCoords.length - 1];
+            if (first[0] !== last[0] || first[1] !== last[1]) {
+              ringCoords.push([first[0], first[1]]);
+            }
+          }
+          coordinates = [ringCoords];
+        }
+
+        // Remove temporary Geoman drawing layer from map
+        map.removeLayer(layer);
+
+        // Notify parent callback to open Create Feature modal
+        if (onDrawingCompleteRef.current) {
+          onDrawingCompleteRef.current({ kind, coordinates });
+        }
+      });
+    }
 
     // Initial bbox emit
     const emitBbox = () => {
@@ -73,6 +139,33 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // Update Geoman Drawing Controls based on user role (canEdit)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const pm = (map as any).pm;
+    if (!pm) return;
+
+    if (canEdit) {
+      pm.addControls({
+        position: 'topleft',
+        drawMarker: true,
+        drawCircleMarker: false,
+        drawPolyline: true,
+        drawRectangle: false,
+        drawPolygon: true,
+        drawCircle: false,
+        editMode: false,
+        dragMode: false,
+        cutPolygon: false,
+        removalMode: false,
+        rotateMode: false,
+      });
+    } else {
+      pm.removeControls();
+    }
+  }, [canEdit]);
 
   // Update GeoJSON features on map
   useEffect(() => {
@@ -154,4 +247,3 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     </div>
   );
 };
-

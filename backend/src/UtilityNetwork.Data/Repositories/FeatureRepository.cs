@@ -674,7 +674,8 @@ public sealed class FeatureRepository : IFeatureRepository
 
         var unionSql = $@"
             (
-                SELECT id, network_id, feature_type_code, name, status::text, attributes::text,
+                SELECT id, network_id, feature_type_code, name, status::text, attributes::text, version,
+                       is_open, NULL::text AS flow_direction, NULL::int AS diameter_mm, NULL::text AS material,
                        ST_AsGeoJSON(geom) AS geojson, 'POINT' AS kind
                 FROM points
                 WHERE geom && ST_MakeEnvelope(@minX, @minY, @maxX, @maxY, 4326)
@@ -683,7 +684,8 @@ public sealed class FeatureRepository : IFeatureRepository
             )
             UNION ALL
             (
-                SELECT id, network_id, feature_type_code, name, status::text, attributes::text,
+                SELECT id, network_id, feature_type_code, name, status::text, attributes::text, version,
+                       NULL::boolean AS is_open, flow_direction::text AS flow_direction, diameter_mm, material,
                        ST_AsGeoJSON(geom) AS geojson, 'LINE' AS kind
                 FROM lines
                 WHERE geom && ST_MakeEnvelope(@minX, @minY, @maxX, @maxY, 4326)
@@ -692,7 +694,8 @@ public sealed class FeatureRepository : IFeatureRepository
             )
             UNION ALL
             (
-                SELECT id, network_id, feature_type_code, name, status::text, attributes::text,
+                SELECT id, network_id, feature_type_code, name, status::text, attributes::text, version,
+                       NULL::boolean AS is_open, NULL::text AS flow_direction, NULL::int AS diameter_mm, NULL::text AS material,
                        ST_AsGeoJSON(geom) AS geojson, 'POLYGON' AS kind
                 FROM polygons
                 WHERE geom && ST_MakeEnvelope(@minX, @minY, @maxX, @maxY, 4326)
@@ -725,6 +728,11 @@ public sealed class FeatureRepository : IFeatureRepository
                     ["name"] = r.Name,
                     ["status"] = r.Status,
                     ["geometryKind"] = r.Kind,
+                    ["version"] = r.Version,
+                    ["isOpen"] = r.Is_Open,
+                    ["flowDirection"] = r.Flow_Direction,
+                    ["diameterMm"] = r.Diameter_Mm,
+                    ["material"] = r.Material,
                     ["attributes"] = System.Text.Json.Nodes.JsonNode.Parse(string.IsNullOrWhiteSpace(r.Attributes) ? "{}" : r.Attributes)
                 };
 
@@ -867,6 +875,11 @@ public sealed class FeatureRepository : IFeatureRepository
         string Name,
         string Status,
         string Attributes,
+        int Version,
+        bool? Is_Open,
+        string? Flow_Direction,
+        int? Diameter_Mm,
+        string? Material,
         string GeoJson,
         string Kind);
 
