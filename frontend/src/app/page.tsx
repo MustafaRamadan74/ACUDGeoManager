@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
@@ -12,6 +12,10 @@ import { FeatureDetails } from '@/components/FeatureDetails';
 import { FeatureEditModal } from '@/components/FeatureEditModal';
 import { DeleteConfirmModal } from '@/components/DeleteConfirmModal';
 import { FeatureHistoryModal } from '@/components/FeatureHistoryModal';
+import { AttributeTable } from '@/components/AttributeTable';
+import { SearchBar } from '@/components/SearchBar';
+import { SummaryModal } from '@/components/SummaryModal';
+import { UserAdminModal } from '@/components/UserAdminModal';
 import { Loader2 } from 'lucide-react';
 
 // Dynamic import with ssr: false for Leaflet map component
@@ -42,10 +46,15 @@ export default function GisPage() {
 
   const [features, setFeatures] = useState<GeoJsonFeature[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<GeoJsonFeature | null>(null);
+  const [targetZoomFeature, setTargetZoomFeature] = useState<GeoJsonFeature | null>(null);
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
   const [isLimitReached, setIsLimitReached] = useState(false);
 
-  // Modals state
+  // Panel & Modals state
+  const [isTableOpen, setIsTableOpen] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+
   const [createGeometry, setCreateGeometry] = useState<{
     kind: 'POINT' | 'LINE' | 'POLYGON';
     coordinates: any;
@@ -56,6 +65,14 @@ export default function GisPage() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentBboxRef = useRef<[number, number, number, number] | null>(null);
+
+  // Current active network object for summary
+  const activeNetwork = useMemo(() => {
+    if (activeNetworkId) {
+      return networks.find((n) => n.id === activeNetworkId) || null;
+    }
+    return networks[0] || null;
+  }, [networks, activeNetworkId]);
 
   // Authentication check
   useEffect(() => {
@@ -151,6 +168,12 @@ export default function GisPage() {
     }
   };
 
+  // Zoom to feature handler (from table or search)
+  const handleZoomToFeature = (feature: GeoJsonFeature) => {
+    setSelectedFeature(feature);
+    setTargetZoomFeature(feature);
+  };
+
   // Callback when a new feature is drawn using Geoman
   const handleDrawingComplete = (geometry: {
     kind: 'POINT' | 'LINE' | 'POLYGON';
@@ -192,6 +215,17 @@ export default function GisPage() {
         networks={networks}
         activeNetworkId={activeNetworkId}
         onSelectNetwork={setActiveNetworkId}
+        onToggleTable={() => setIsTableOpen(!isTableOpen)}
+        isTableOpen={isTableOpen}
+        onOpenSummary={() => setIsSummaryOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
+        searchSlot={
+          <SearchBar
+            features={features}
+            onSelectFeature={setSelectedFeature}
+            onZoomToFeature={handleZoomToFeature}
+          />
+        }
       />
 
       {/* Main Workspace: Sidebar + Map + FeatureDetails */}
@@ -222,10 +256,22 @@ export default function GisPage() {
             featureTypes={featureTypes}
             visibleTypes={visibleTypes}
             selectedFeatureId={selectedFeature?.id || null}
+            targetZoomFeature={targetZoomFeature}
             canEdit={canEdit}
             onSelectFeature={setSelectedFeature}
             onBboxChange={handleBboxChange}
             onDrawingComplete={handleDrawingComplete}
+          />
+
+          {/* Bottom Attribute Table Drawer */}
+          <AttributeTable
+            isOpen={isTableOpen}
+            onClose={() => setIsTableOpen(false)}
+            features={features}
+            featureTypes={featureTypes}
+            selectedFeatureId={selectedFeature?.id || null}
+            onSelectFeature={setSelectedFeature}
+            onZoomToFeature={handleZoomToFeature}
           />
         </main>
 
@@ -241,7 +287,7 @@ export default function GisPage() {
         )}
       </div>
 
-      {/* Feature Create Modal (opened after Leaflet-Geoman drawing) */}
+      {/* Feature Create Modal */}
       {createGeometry && (
         <FeatureEditModal
           mode="create"
@@ -279,6 +325,22 @@ export default function GisPage() {
         <FeatureHistoryModal
           feature={historyFeature}
           onClose={() => setHistoryFeature(null)}
+        />
+      )}
+
+      {/* Network Summary Modal */}
+      {isSummaryOpen && (
+        <SummaryModal
+          network={activeNetwork}
+          onClose={() => setIsSummaryOpen(false)}
+        />
+      )}
+
+      {/* User Administration Modal (Admin Only) */}
+      {isAdminOpen && (
+        <UserAdminModal
+          networks={networks}
+          onClose={() => setIsAdminOpen(false)}
         />
       )}
     </div>

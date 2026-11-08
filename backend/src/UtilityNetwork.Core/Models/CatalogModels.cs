@@ -20,3 +20,17 @@ public sealed record FeatureTypeDto(
     JsonElement AttributeSchema,
     JsonElement Style,
     bool IsActive);
+
+public sealed record TypeStatusCountDto(
+    string FeatureTypeCode,
+    string Status,
+    int Count);
+
+public sealed record NetworkSummaryDto(
+    Guid NetworkId,
+    string NetworkName,
+    string NetworkDomain,
+    int TotalFeatures,
+    IReadOnlyDictionary<string, int> CountsByType,
+    IReadOnlyDictionary<string, int> CountsByStatus,
+    IReadOnlyList<TypeStatusCountDto> Details);

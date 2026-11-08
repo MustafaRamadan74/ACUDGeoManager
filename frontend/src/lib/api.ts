@@ -13,6 +13,10 @@ import {
   UpdatePolygonRequest,
   AuditLogEntry,
   PagedResult,
+  NetworkSummaryDto,
+  UserResponse,
+  CreateUserRequest,
+  UpdateUserRequest,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -180,6 +184,10 @@ export const api = {
     return await request<FeatureTypeDto[]>(path);
   },
 
+  getNetworkSummary: async (networkId: string): Promise<NetworkSummaryDto> => {
+    return await request<NetworkSummaryDto>(`/networks/${networkId}/summary`);
+  },
+
   // Map Features
   getMapFeatures: async (
     bbox: [number, number, number, number],
@@ -276,6 +284,56 @@ export const api = {
   ): Promise<PagedResult<AuditLogEntry>> => {
     return await request<PagedResult<AuditLogEntry>>(
       `/history?featureId=${featureId}&page=${page}&pageSize=${pageSize}`
+    );
+  },
+
+  // User Administration (Admin Role)
+  getUsers: async (): Promise<UserResponse[]> => {
+    return await request<UserResponse[]>('/users');
+  },
+
+  getUserById: async (id: string): Promise<UserResponse> => {
+    return await request<UserResponse>(`/users/${id}`);
+  },
+
+  createUser: async (data: CreateUserRequest): Promise<UserResponse> => {
+    return await request<UserResponse>('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateUser: async (id: string, data: UpdateUserRequest): Promise<UserResponse> => {
+    return await request<UserResponse>(`/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteUser: async (id: string): Promise<void> => {
+    await request<void>(`/users/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getUserNetworks: async (id: string): Promise<string[]> => {
+    return await request<string[]>(`/users/${id}/networks`);
+  },
+
+  assignUserNetworks: async (id: string, networkIds: string[]): Promise<void> => {
+    await request<void>(`/users/${id}/networks`, {
+      method: 'PUT',
+      body: JSON.stringify({ networkIds }),
+    });
+  },
+
+  getUserActivity: async (
+    userId: string,
+    page = 1,
+    pageSize = 50
+  ): Promise<PagedResult<AuditLogEntry>> => {
+    return await request<PagedResult<AuditLogEntry>>(
+      `/history?userId=${userId}&page=${page}&pageSize=${pageSize}`
     );
   },
 };

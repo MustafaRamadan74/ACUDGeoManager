@@ -8,4 +8,5 @@ public interface ICatalogRepository
     Task<NetworkDto?> GetNetworkByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<FeatureTypeDto>> GetFeatureTypesAsync(CancellationToken ct = default);
     Task<FeatureTypeDto?> GetFeatureTypeByCodeAsync(string code, CancellationToken ct = default);
+    Task<NetworkSummaryDto?> GetNetworkSummaryAsync(Guid networkId, CancellationToken ct = default);
 }

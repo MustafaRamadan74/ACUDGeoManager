@@ -74,6 +74,43 @@ public sealed class CatalogRepository : ICatalogRepository
         return row?.ToDto();
     }
 
+    public async Task<NetworkSummaryDto?> GetNetworkSummaryAsync(Guid networkId, CancellationToken ct = default)
+    {
+        var network = await GetNetworkByIdAsync(networkId, ct);
+        if (network == null) return null;
+
+        const string sql = @"
+            SELECT feature_type_code AS FeatureTypeCode, status AS Status, count(*)::int AS Count
+            FROM (
+                SELECT feature_type_code, status FROM points WHERE network_id = @networkId
+                UNION ALL
+                SELECT feature_type_code, status FROM lines WHERE network_id = @networkId
+                UNION ALL
+                SELECT feature_type_code, status FROM polygons WHERE network_id = @networkId
+            ) f
+            GROUP BY feature_type_code, status
+            ORDER BY feature_type_code ASC, status ASC;";
+
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        var rows = (await conn.QueryAsync<TypeStatusCountDto>(new CommandDefinition(sql, new { networkId }, cancellationToken: ct))).ToList();
+
+        var total = rows.Sum(r => r.Count);
+        var byType = rows.GroupBy(r => r.FeatureTypeCode)
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.Count));
+        var byStatus = rows.GroupBy(r => r.Status)
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.Count));
+
+        return new NetworkSummaryDto(
+            NetworkId: network.Id,
+            NetworkName: network.Name,
+            NetworkDomain: network.Domain,
+            TotalFeatures: total,
+            CountsByType: byType,
+            CountsByStatus: byStatus,
+            Details: rows);
+    }
+
     private sealed record FeatureTypeDbDto(
         string Code,
         string NetworkDomain,

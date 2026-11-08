@@ -247,3 +247,4 @@ export const FeatureHistoryModal: React.FC<FeatureHistoryModalProps> = ({
     </div>
   );
 };
+

@@ -174,3 +174,49 @@ export interface PagedResult<T> {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
 }
+
+// --- Network Summary ---
+
+export interface TypeStatusCountDto {
+  featureTypeCode: string;
+  status: string;
+  count: number;
+}
+
+export interface NetworkSummaryDto {
+  networkId: string;
+  networkName: string;
+  networkDomain: string;
+  totalFeatures: number;
+  countsByType: Record<string, number>;
+  countsByStatus: Record<string, number>;
+  details: TypeStatusCountDto[];
+}
+
+// --- User Management ---
+
+export interface UserResponse {
+  id: string;
+  username: string;
+  email: string;
+  role: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  isActive: boolean;
+  lastLoginAt?: string | null;
+  createdAt: string;
+  accessibleNetworkIds: string[];
+}
+
+export interface CreateUserRequest {
+  username: string;
+  email: string;
+  password: string;
+  role: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  networkIds?: string[];
+}
+
+export interface UpdateUserRequest {
+  email?: string;
+  role?: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  isActive?: boolean;
+  networkIds?: string[];
+}

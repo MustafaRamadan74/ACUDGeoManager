@@ -25,6 +25,15 @@ public sealed class CatalogController : ControllerBase
         return Ok(networks);
     }
 
+    [HttpGet("networks/{id:guid}/summary")]
+    [ProducesResponseType(typeof(NetworkSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetNetworkSummaryAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var summary = await _catalogRepository.GetNetworkSummaryAsync(id, cancellationToken);
+        return summary is not null ? Ok(summary) : NotFound();
+    }
+
     [HttpGet("feature-types")]
     [ProducesResponseType(typeof(IReadOnlyList<FeatureTypeDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetFeatureTypesAsync(CancellationToken cancellationToken)

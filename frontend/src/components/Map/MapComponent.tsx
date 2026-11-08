@@ -10,6 +10,7 @@ interface MapComponentProps {
   featureTypes: FeatureTypeDto[];
   visibleTypes: Set<string>;
   selectedFeatureId: string | null;
+  targetZoomFeature?: GeoJsonFeature | null;
   canEdit: boolean;
   onSelectFeature: (feature: GeoJsonFeature) => void;
   onBboxChange: (bbox: [number, number, number, number]) => void;
@@ -24,6 +25,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   featureTypes,
   visibleTypes,
   selectedFeatureId,
+  targetZoomFeature,
   canEdit,
   onSelectFeature,
   onBboxChange,
@@ -63,14 +65,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     // Leaflet-Geoman Snapping & Drawing Configuration
     const pm = (map as any).pm;
     if (pm) {
-      // Global snapping options: snap to existing vertices and midpoints within 15px
       pm.setGlobalOptions({
         snapping: true,
         snapDistance: 15,
         allowSelfIntersection: false,
       });
 
-      // Handle drawing completion
       map.on('pm:create', (e: any) => {
         const { shape, layer } = e;
         if (!layer) return;
@@ -92,7 +92,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           const ring = Array.isArray(rawLatlngs[0]) ? rawLatlngs[0] : rawLatlngs;
           const ringCoords = ring.map((ll: any) => [ll.lng, ll.lat]);
 
-          // Close polygon ring if needed
           if (ringCoords.length > 0) {
             const first = ringCoords[0];
             const last = ringCoords[ringCoords.length - 1];
@@ -103,10 +102,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           coordinates = [ringCoords];
         }
 
-        // Remove temporary Geoman drawing layer from map
         map.removeLayer(layer);
 
-        // Notify parent callback to open Create Feature modal
         if (onDrawingCompleteRef.current) {
           onDrawingCompleteRef.current({ kind, coordinates });
         }
@@ -124,7 +121,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       ]);
     };
 
-    // Listen to moveend with debounce
     map.on('moveend', () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(emitBbox, 250);
@@ -139,6 +135,28 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       mapInstanceRef.current = null;
     };
   }, []);
+
+  // React to targetZoomFeature (click to zoom and select)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !targetZoomFeature) return;
+
+    try {
+      const geom = targetZoomFeature.geometry;
+      if (geom.type === 'Point') {
+        const [lng, lat] = geom.coordinates;
+        map.flyTo([lat, lng], 18, { animate: true, duration: 1 });
+      } else {
+        const tempLayer = L.geoJSON(targetZoomFeature as any);
+        const bounds = tempLayer.getBounds();
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { maxZoom: 18, animate: true, padding: [60, 60] });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to zoom to feature:', err);
+    }
+  }, [targetZoomFeature]);
 
   // Update Geoman Drawing Controls based on user role (canEdit)
   useEffect(() => {
@@ -180,7 +198,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     const typeStyles = new Map<string, any>();
     featureTypes.forEach((ft) => typeStyles.set(ft.code, ft.style));
 
-    // Filter features by visibleTypes
     const filteredFeatures = features.filter((f) =>
       visibleTypes.has(f.properties.featureTypeCode)
     );
@@ -221,7 +238,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           };
         },
         onEachFeature: (feature, layer) => {
-          // Tooltip on hover
           const name = feature.properties?.name || 'Feature';
           const type = feature.properties?.featureTypeCode || '';
           layer.bindTooltip(
@@ -229,7 +245,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             { direction: 'top', offset: [0, -5], opacity: 0.9 }
           );
 
-          // Click handler to select
           layer.on('click', () => {
             onSelectFeature(feature as any);
           });
