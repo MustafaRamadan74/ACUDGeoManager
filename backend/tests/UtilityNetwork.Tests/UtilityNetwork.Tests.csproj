@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\UtilityNetwork.Api\UtilityNetwork.Api.csproj" />
     <ProjectReference Include="..\..\src\UtilityNetwork.Core\UtilityNetwork.Core.csproj" />
     <ProjectReference Include="..\..\src\UtilityNetwork.Data\UtilityNetwork.Data.csproj" />
+    <ProjectReference Include="..\..\src\UtilityNetwork.Seed\UtilityNetwork.Seed.csproj" />
   </ItemGroup>
 
 </Project>

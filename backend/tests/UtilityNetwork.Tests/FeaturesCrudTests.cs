@@ -320,7 +320,8 @@ public sealed class FeaturesCrudTests : IClassFixture<WebApplicationFactory<Prog
         mapReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var mapRes = await client.SendAsync(mapReq);
 
-        Assert.Equal(HttpStatusCode.OK, mapRes.StatusCode);
+        var resBody = await mapRes.Content.ReadAsStringAsync();
+        Assert.True(mapRes.StatusCode == HttpStatusCode.OK, $"Expected 200 OK, got {mapRes.StatusCode}: {resBody}");
         var featureCollection = await mapRes.Content.ReadFromJsonAsync<GeoJsonFeatureCollection>();
         Assert.NotNull(featureCollection);
         Assert.Equal("FeatureCollection", featureCollection.Type);
