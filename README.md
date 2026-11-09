@@ -353,3 +353,25 @@ docker run -d --name acud_martin \
 - OpenStreetMap data extracted into offline MBTiles requires the standard ODbL attribution: `© OpenStreetMap contributors`.
 - ACUD orthophoto and high-resolution UAV aerial surveys should specify the department attribution watermark (e.g. `© ACUD Survey & Mapping Directorate`).
 - ACUDGeoManager automatically includes the configured basemap attribution in map exports and printed outputs.
+
+---
+
+## 10. PDF Reporting Engine & License Compliance (QuestPDF)
+
+ACUDGeoManager incorporates a high-performance server-side document generation engine using **QuestPDF** to produce official bilingual (Arabic and English) executive reports, topological validation audits, asset history timelines, and spatial analysis summaries.
+
+### License Check & Verification
+
+QuestPDF is utilized under the **QuestPDF Community License**:
+- **Permitted Use**: Free for open-source initiatives, individual developers, non-commercial use, and organizations with annual gross revenue under \$1M USD.
+- **Explicit Configuration**: Declared statically in the application initialization layer:
+  ```csharp
+  QuestPDF.Settings.License = LicenseType.Community;
+  ```
+- **Text & Layout Engine**: Uses Skia font rendering and HarfBuzz complex text shaping for clean right-to-left (RTL) Arabic typography alongside English numerals and metadata.
+
+### CSV Export Security & Formula Injection Protection
+
+All CSV exports (workspace summaries, validation logs, audit histories, and analysis widgets) implement strict sanitization against CSV Formula Injection (CWE-1236):
+- Any cell value beginning with `=`, `+`, `-`, `@`, `\t`, or `\r` is automatically escaped with a leading single quote (`'`).
+- Files are encoded with UTF-8 BOM (`0xEF, 0xBB, 0xBF`) to ensure clean display of Arabic characters in desktop spreadsheet applications (Microsoft Excel, LibreOffice Calc).

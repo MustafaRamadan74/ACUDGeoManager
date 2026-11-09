@@ -70,3 +70,4 @@ export const LiveCoordinatesBar: React.FC<LiveCoordinatesBarProps> = ({
     </div>
   );
 };
+

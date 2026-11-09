@@ -47,3 +47,4 @@ public sealed class BookmarkService : IBookmarkService
         return await _repository.DeleteAsync(id, userId, ct);
     }
 }
+

@@ -36,6 +36,18 @@ import {
   ImportCommitResultDto,
   BookmarkDto,
   CreateBookmarkRequest,
+  BufferAnalysisRequest,
+  BufferAnalysisResultDto,
+  ServiceAreaRequest,
+  ServiceAreaResultDto,
+  SpatialJoinRequest,
+  SpatialJoinResultDto,
+  NetworkStatisticsDto,
+  WorkspaceSummaryReportRequest,
+  ValidationReportRequest,
+  FeatureHistoryReportRequest,
+  UserActivityReportRequest,
+  AnalysisWidgetExportRequest,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -519,4 +531,93 @@ export const api = {
       method: 'DELETE',
     });
   },
+
+  // Analysis Services
+  runBufferAnalysis: async (data: BufferAnalysisRequest): Promise<BufferAnalysisResultDto> => {
+    return await request<BufferAnalysisResultDto>('/analysis/buffer', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  runServiceAreaAnalysis: async (data: ServiceAreaRequest): Promise<ServiceAreaResultDto> => {
+    return await request<ServiceAreaResultDto>('/analysis/service-area', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  runSpatialJoin: async (data: SpatialJoinRequest): Promise<SpatialJoinResultDto> => {
+    return await request<SpatialJoinResultDto>('/analysis/spatial-join', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getNetworkStatistics: async (networkId: string): Promise<NetworkStatisticsDto> => {
+    return await request<NetworkStatisticsDto>(`/analysis/statistics/${networkId}`);
+  },
+
+  // Reports Generation Services (PDF & CSV)
+  downloadWorkspaceSummaryReport: async (data: WorkspaceSummaryReportRequest): Promise<void> => {
+    await downloadReportFile('/reports/workspace-summary', data, 'Workspace_Summary_Report');
+  },
+
+  downloadValidationReport: async (data: ValidationReportRequest): Promise<void> => {
+    await downloadReportFile('/reports/validation', data, 'Validation_Report');
+  },
+
+  downloadFeatureHistoryReport: async (data: FeatureHistoryReportRequest): Promise<void> => {
+    await downloadReportFile('/reports/feature-history', data, `Feature_${data.featureId}_History`);
+  },
+
+  downloadUserActivityReport: async (data: UserActivityReportRequest): Promise<void> => {
+    await downloadReportFile('/reports/user-activity', data, 'User_Activity_Report');
+  },
+
+  downloadAnalysisWidgetReport: async (data: AnalysisWidgetExportRequest): Promise<void> => {
+    await downloadReportFile('/reports/analysis-widget', data, 'Analysis_Report');
+  },
 };
+
+async function downloadReportFile(endpoint: string, body: any, fallbackName: string): Promise<void> {
+  const token = getAccessToken();
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    let errMsg = `Report download failed: ${res.statusText}`;
+    try {
+      const errJson = await res.json();
+      if (errJson.detail) errMsg = errJson.detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(errMsg);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition');
+  const ext = body.format === 'Csv' ? 'csv' : 'pdf';
+  let filename = `${fallbackName}_${Date.now()}.${ext}`;
+
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) filename = match[1];
+  }
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@geoman-io/leaflet-geoman-free": "^2.20.6",
+    "@turf/turf": "^7.4.0",
     "clsx": "^2.1.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.359.0",

@@ -22,6 +22,7 @@ import { SpatialResultsDrawer } from '@/components/SpatialResultsDrawer';
 import { ValidationDashboardModal } from '@/components/ValidationDashboardModal';
 import { HistoryPanelModal } from '@/components/HistoryPanelModal';
 import { ImportExportModal } from '@/components/ImportExportModal';
+import { AnalysisModal } from '@/components/AnalysisModal';
 import { useToast } from '@/components/Toast';
 import { Loader2 } from 'lucide-react';
 
@@ -65,6 +66,10 @@ export default function GisPage() {
   const [isValidationOpen, setIsValidationOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const [analysisGeometry, setAnalysisGeometry] = useState<any | null>(null);
+  const [measuringMode, setMeasuringMode] = useState<'LINE' | 'POLYGON' | null>(null);
+  const [drawnMeasureGeometry, setDrawnMeasureGeometry] = useState<any | null>(null);
   const [historyStack, setHistoryStack] = useState<UndoRedoStackDto | null>(null);
   const [validationIssues, setValidationIssues] = useState<ValidationIssueDto[]>([]);
 
@@ -443,6 +448,7 @@ export default function GisPage() {
         onOpenNearestModal={() => setIsNearestModalOpen(true)}
         onOpenValidation={() => setIsValidationOpen(true)}
         onOpenImportExport={() => setIsImportExportOpen(true)}
+        onOpenAnalysis={() => setIsAnalysisOpen(true)}
         canUndo={historyStack?.canUndo ?? false}
         canRedo={historyStack?.canRedo ?? false}
         onUndo={handleUndo}
@@ -494,6 +500,14 @@ export default function GisPage() {
             fitFeaturesBounds={fitFeaturesBounds}
             canEdit={canEdit}
             isSelectingPolygon={isSelectingPolygon}
+            analysisGeometry={analysisGeometry}
+            isMeasuring={measuringMode}
+            onMeasureDrawingComplete={(geom) => {
+              setDrawnMeasureGeometry(geom);
+              setMeasuringMode(null);
+              setIsAnalysisOpen(true);
+            }}
+            drawnMeasureGeometry={drawnMeasureGeometry}
             onSelectFeature={setSelectedFeature}
             onBboxChange={handleBboxChange}
             onCenterChange={setCurrentMapCenter}
@@ -657,6 +671,25 @@ export default function GisPage() {
             fetchFeatures(currentBboxRef.current);
           }
         }}
+      />
+
+      {/* Analysis & Reports Modal */}
+      <AnalysisModal
+        isOpen={isAnalysisOpen}
+        onClose={() => setIsAnalysisOpen(false)}
+        networks={networks}
+        activeNetworkId={activeNetworkId}
+        featureTypes={featureTypes}
+        selectedFeature={selectedFeature}
+        currentMapCenter={currentMapCenter}
+        onSetAnalysisGeometry={setAnalysisGeometry}
+        onStartMeasureDrawing={(kind) => {
+          setMeasuringMode(kind);
+          setIsAnalysisOpen(false);
+        }}
+        drawnMeasureGeometry={drawnMeasureGeometry}
+        onClearMeasureDrawing={() => setDrawnMeasureGeometry(null)}
+        isAr={isAr}
       />
     </div>
   );

@@ -29,3 +29,4 @@ public sealed record CreateBookmarkRequest(
 
     string? Bbox = null
 );
+

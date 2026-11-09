@@ -9,3 +9,4 @@ public interface IBookmarkRepository
     Task<BookmarkDto> CreateAsync(Guid userId, CreateBookmarkRequest request, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, Guid userId, CancellationToken ct = default);
 }
+

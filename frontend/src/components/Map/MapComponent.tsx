@@ -29,6 +29,10 @@ interface MapComponentProps {
     coordinates: any;
   }) => void;
   onPolygonSelected?: (polygonGeoJson: any) => void;
+  analysisGeometry?: any | null;
+  isMeasuring?: 'LINE' | 'POLYGON' | null;
+  onMeasureDrawingComplete?: (geometry: any) => void;
+  drawnMeasureGeometry?: any | null;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -42,6 +46,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   fitFeaturesBounds,
   canEdit,
   isSelectingPolygon = false,
+  analysisGeometry,
+  isMeasuring = null,
+  onMeasureDrawingComplete,
+  drawnMeasureGeometry,
   onSelectFeature,
   onBboxChange,
   onCenterChange,
@@ -55,8 +63,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const geojsonLayerRef = useRef<L.GeoJSON | null>(null);
   const validationLayerRef = useRef<L.GeoJSON | null>(null);
+  const analysisLayerRef = useRef<L.GeoJSON | null>(null);
+  const measureLayerRef = useRef<L.GeoJSON | null>(null);
   const basemapLayerRef = useRef<L.TileLayer | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isMeasuringRef = useRef(isMeasuring);
+  const onMeasureDrawingCompleteRef = useRef(onMeasureDrawingComplete);
 
   // Basemap state with localStorage persistence
   const [currentBasemap, setCurrentBasemap] = useState<BasemapKey>(() => {
@@ -90,6 +103,14 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     isSelectingPolygonRef.current = isSelectingPolygon;
   }, [isSelectingPolygon]);
+
+  useEffect(() => {
+    isMeasuringRef.current = isMeasuring;
+  }, [isMeasuring]);
+
+  useEffect(() => {
+    onMeasureDrawingCompleteRef.current = onMeasureDrawingComplete;
+  }, [onMeasureDrawingComplete]);
 
   useEffect(() => {
     onCenterChangeRef.current = onCenterChange;
@@ -227,6 +248,24 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         map.removeLayer(layer);
 
+        // Check if we are in measurement drawing mode
+        if (isMeasuringRef.current) {
+          if (onMeasureDrawingCompleteRef.current) {
+            if (kind === 'LINE') {
+              onMeasureDrawingCompleteRef.current({
+                type: 'LineString',
+                coordinates: coordinates,
+              });
+            } else if (kind === 'POLYGON') {
+              onMeasureDrawingCompleteRef.current({
+                type: 'Polygon',
+                coordinates: coordinates,
+              });
+            }
+          }
+          return;
+        }
+
         // Check if we are in polygon selection mode
         if (isSelectingPolygonRef.current && (shape === 'Polygon' || shape === 'Rectangle')) {
           if (onPolygonSelectedRef.current) {
@@ -322,6 +361,116 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       }
     }
   }, [isSelectingPolygon]);
+
+  // React to Measurement Drawing Mode Toggle
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const pm = (map as any).pm;
+    if (!pm) return;
+
+    if (isMeasuring === 'LINE') {
+      pm.enableDraw('Line', {
+        snappable: false,
+        continueDrawing: false,
+        templineStyle: { color: '#38BDF8', dashArray: '5, 5', weight: 3 },
+        hintlineStyle: { color: '#38BDF8', dashArray: '5, 5', weight: 3 },
+      });
+    } else if (isMeasuring === 'POLYGON') {
+      pm.enableDraw('Polygon', {
+        snappable: false,
+        continueDrawing: false,
+        templineStyle: { color: '#F59E0B', dashArray: '5, 5', weight: 3 },
+        hintlineStyle: { color: '#F59E0B', dashArray: '5, 5', weight: 3 },
+      });
+    } else {
+      if (pm.Draw?.Line?.enabled()) pm.disableDraw();
+      if (pm.Draw?.Polygon?.enabled()) pm.disableDraw();
+    }
+  }, [isMeasuring]);
+
+  // React to Analysis Geometry (Buffer / Service Area) display
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (analysisLayerRef.current) {
+      map.removeLayer(analysisLayerRef.current);
+      analysisLayerRef.current = null;
+    }
+
+    if (!analysisGeometry) return;
+
+    try {
+      const layer = L.geoJSON(analysisGeometry, {
+        style: {
+          color: '#06B6D4',
+          weight: 3,
+          dashArray: '5, 5',
+          fillColor: '#0891B2',
+          fillOpacity: 0.25,
+        },
+        pointToLayer: (_feat, latlng) => {
+          return L.circleMarker(latlng, {
+            radius: 8,
+            fillColor: '#06B6D4',
+            color: '#FFFFFF',
+            weight: 2,
+            fillOpacity: 0.85,
+          });
+        },
+      });
+
+      layer.addTo(map);
+      analysisLayerRef.current = layer;
+
+      const bounds = layer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { maxZoom: 17, padding: [60, 60], animate: true });
+      }
+    } catch (err) {
+      console.error('Failed to render analysis geometry:', err);
+    }
+  }, [analysisGeometry]);
+
+  // React to Drawn Measure Geometry display
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (measureLayerRef.current) {
+      map.removeLayer(measureLayerRef.current);
+      measureLayerRef.current = null;
+    }
+
+    if (!drawnMeasureGeometry) return;
+
+    try {
+      const feat = {
+        type: 'Feature',
+        geometry: drawnMeasureGeometry,
+        properties: {},
+      };
+      const layer = L.geoJSON(feat as any, {
+        style: {
+          color: '#38BDF8',
+          weight: 4,
+          dashArray: '4, 4',
+          fillColor: '#0284C7',
+          fillOpacity: 0.35,
+        },
+      });
+      layer.addTo(map);
+      measureLayerRef.current = layer;
+
+      const bounds = layer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { maxZoom: 18, padding: [50, 50], animate: true });
+      }
+    } catch (err) {
+      console.error('Failed to render measure geometry:', err);
+    }
+  }, [drawnMeasureGeometry]);
 
   // React to fitFeaturesBounds (auto zoom to query results)
   useEffect(() => {
@@ -692,6 +841,22 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             {isAr
               ? 'انقر على الخريطة لرسم مضلع التحديد المكاني (انقر مرتين للإنهاء)'
               : 'Click on the map to draw selection polygon (Double-click to finish)'}
+          </span>
+        </div>
+      )}
+
+      {/* Floating Banner when Measurement Drawing is active */}
+      {isMeasuring && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-sky-950/90 backdrop-blur-md border border-sky-400/60 text-white text-xs px-4 py-2 rounded-xl shadow-xl flex items-center gap-3 animate-pulse no-print">
+          <div className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
+          <span className="font-medium">
+            {isAr
+              ? isMeasuring === 'LINE'
+                ? 'انقر على الخريطة لرسم مسار القياس (انقر مرتين للإنهاء)'
+                : 'انقر على الخريطة لرسم مضلع قياس المساحة (انقر مرتين للإنهاء)'
+              : isMeasuring === 'LINE'
+              ? 'Click to draw measure path (Double-click to finish)'
+              : 'Click to draw measure area (Double-click to finish)'}
           </span>
         </div>
       )}

@@ -448,3 +448,150 @@ export interface CreateBookmarkRequest {
 
 
 
+
+// --- Analysis & Reports Types ---
+
+export interface IntersectingFeatureItem {
+  id: string;
+  featureTypeCode: string;
+  name: string;
+  geometryKind: string;
+  geometryGeoJson: string;
+  status: string;
+  lengthMeters?: number | null;
+  areaSqM?: number | null;
+}
+
+export interface BufferAnalysisRequest {
+  geometryGeoJson?: string | null;
+  featureId?: string | null;
+  distanceMeters: number;
+  networkId?: string | null;
+  featureTypeCodes?: string[] | null;
+}
+
+export interface BufferAnalysisResultDto {
+  bufferPolygonGeoJson: string;
+  distanceMeters: number;
+  intersectingFeaturesCount: number;
+  totalPipeLengthMeters: number;
+  totalAreaSqM: number;
+  intersectingFeatures: IntersectingFeatureItem[];
+}
+
+export interface ServiceAreaRingDto {
+  radiusMeters: number;
+  polygonGeoJson: string;
+  featuresCount: number;
+  valvesCount: number;
+  pipeLengthMeters: number;
+}
+
+export interface ServiceAreaRequest {
+  centerLon: number;
+  centerLat: number;
+  radiiMeters: number[];
+  networkId?: string | null;
+}
+
+export interface ServiceAreaResultDto {
+  centerLon: number;
+  centerLat: number;
+  rings: ServiceAreaRingDto[];
+}
+
+export interface SpatialJoinItemDto {
+  polygonId: string;
+  polygonName: string;
+  containedCount: number;
+  totalContainedLengthMeters: number;
+  geometryGeoJson: string;
+}
+
+export interface SpatialJoinRequest {
+  polygonTypeCode: string;
+  targetTypeCode: string;
+  networkId?: string | null;
+}
+
+export interface SpatialJoinResultDto {
+  polygonTypeCode: string;
+  targetTypeCode: string;
+  totalPolygons: number;
+  totalContainedCount: number;
+  items: SpatialJoinItemDto[];
+}
+
+export interface TypeStatsDto {
+  featureTypeCode: string;
+  displayName: string;
+  geometryKind: string;
+  count: number;
+  totalLengthMeters: number;
+  totalAreaSqM: number;
+}
+
+export interface StatusStatsDto {
+  status: string;
+  count: number;
+}
+
+export interface PipeDiameterStatsDto {
+  diameterMm: number;
+  count: number;
+  totalLengthMeters: number;
+}
+
+export interface ValveStateStatsDto {
+  state: string;
+  count: number;
+}
+
+export interface NetworkStatisticsDto {
+  networkId: string;
+  totalFeatures: number;
+  totalPipeLengthMeters: number;
+  totalAreaSqM: number;
+  byType: TypeStatsDto[];
+  byStatus: StatusStatsDto[];
+  pipesByDiameter: PipeDiameterStatsDto[];
+  valvesByState: ValveStateStatsDto[];
+}
+
+export type ReportFormat = 'Pdf' | 'Csv';
+
+export interface WorkspaceSummaryReportRequest {
+  networkId: string;
+  mapSnapshotBase64?: string | null;
+  format?: ReportFormat;
+}
+
+export interface ValidationReportRequest {
+  networkId?: string | null;
+  severity?: string | null;
+  mapSnapshotBase64?: string | null;
+  format?: ReportFormat;
+}
+
+export interface FeatureHistoryReportRequest {
+  featureId: string;
+  mapSnapshotBase64?: string | null;
+  format?: ReportFormat;
+}
+
+export interface UserActivityReportRequest {
+  fromDate?: string | null;
+  toDate?: string | null;
+  format?: ReportFormat;
+}
+
+export interface AnalysisWidgetExportRequest {
+  title: string;
+  analysisType: string;
+  description?: string | null;
+  summaryJson?: string | null;
+  headers: string[];
+  rows: string[][];
+  mapSnapshotBase64?: string | null;
+  format?: ReportFormat;
+}

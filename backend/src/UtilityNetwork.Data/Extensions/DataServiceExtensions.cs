@@ -62,6 +62,10 @@ public static class DataServiceExtensions
         services.AddScoped<IBookmarkRepository, BookmarkRepository>();
         services.AddScoped<IBookmarkService, BookmarkService>();
 
+        // Analysis & Reporting
+        services.AddScoped<IAnalysisService, AnalysisService>();
+        services.AddScoped<IReportService, ReportService>();
+
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);
 

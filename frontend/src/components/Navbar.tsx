@@ -22,6 +22,7 @@ import {
   Redo2,
   History,
   ArrowUpDown,
+  Activity,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -38,6 +39,7 @@ interface NavbarProps {
   onOpenNearestModal: () => void;
   onOpenValidation?: () => void;
   onOpenImportExport?: () => void;
+  onOpenAnalysis?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -63,6 +65,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNearestModal,
   onOpenValidation,
   onOpenImportExport,
+  onOpenAnalysis,
   canUndo = false,
   canRedo = false,
   onUndo,
@@ -331,6 +334,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <ArrowUpDown className="w-3.5 h-3.5 text-emerald-400" />
             <span className="hidden lg:inline">{isAr ? 'استيراد/تصدير' : 'Import/Export'}</span>
+          </button>
+        )}
+
+        {/* Spatial Analysis & Reports */}
+        {onOpenAnalysis && (
+          <button
+            onClick={onOpenAnalysis}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-950/40 hover:bg-sky-900/60 text-sky-300 text-xs font-semibold border border-sky-800/60 transition shadow-sm"
+            title={isAr ? 'التحليلات المكانية وتقارير PDF' : 'Spatial Analysis & Reports'}
+          >
+            <Activity className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden lg:inline">{isAr ? 'التحليلات والتقارير' : 'Analysis'}</span>
           </button>
         )}
 

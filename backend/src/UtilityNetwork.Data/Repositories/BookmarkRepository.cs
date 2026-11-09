@@ -104,3 +104,4 @@ public sealed class BookmarkRepository : IBookmarkRepository
         return affected > 0;
     }
 }
+

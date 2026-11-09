@@ -119,3 +119,4 @@ export function wgs84ToUtm36N(lat: number, lon: number): ProjectedCoord {
 
   return { easting: Math.round(easting * 10) / 10, northing: Math.round(northing * 10) / 10 };
 }
+
