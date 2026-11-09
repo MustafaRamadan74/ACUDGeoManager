@@ -8,3 +8,4 @@ public interface ILayerPermissionRepository
     Task<LayerPermissionDto?> GetUserLayerPermissionAsync(Guid userId, string featureTypeCode, CancellationToken ct = default);
     Task SetUserLayerPermissionsAsync(Guid userId, IEnumerable<UpdateLayerPermissionRequest> permissions, CancellationToken ct = default);
 }
+

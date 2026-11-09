@@ -19,3 +19,4 @@ CREATE TABLE IF NOT EXISTS user_layer_permissions (
 
 CREATE INDEX IF NOT EXISTS idx_user_layer_perm_user ON user_layer_permissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_layer_perm_type ON user_layer_permissions(feature_type_code);
+

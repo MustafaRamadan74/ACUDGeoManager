@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
-import { FeatureTypeDto, GeoJsonFeature } from '@/lib/types';
+import { FeatureTypeDto, GeoJsonFeature, ValidationIssueDto } from '@/lib/types';
 
 interface MapComponentProps {
   features: GeoJsonFeature[];
@@ -11,6 +11,7 @@ interface MapComponentProps {
   visibleTypes: Set<string>;
   selectedFeatureId: string | null;
   highlightedFeatureIds?: Set<string>;
+  validationIssues?: ValidationIssueDto[];
   targetZoomFeature?: GeoJsonFeature | null;
   fitFeaturesBounds?: GeoJsonFeature[] | null;
   canEdit: boolean;
@@ -31,6 +32,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   visibleTypes,
   selectedFeatureId,
   highlightedFeatureIds,
+  validationIssues,
   targetZoomFeature,
   fitFeaturesBounds,
   canEdit,
@@ -44,6 +46,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const geojsonLayerRef = useRef<L.GeoJSON | null>(null);
+  const validationLayerRef = useRef<L.GeoJSON | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const onDrawingCompleteRef = useRef(onDrawingComplete);
@@ -380,6 +383,89 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     geoJsonLayer.addTo(map);
     geojsonLayerRef.current = geoJsonLayer;
   }, [features, featureTypes, visibleTypes, selectedFeatureId, highlightedFeatureIds]);
+
+  // Render Validation Issues Layer
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (validationLayerRef.current) {
+      map.removeLayer(validationLayerRef.current);
+      validationLayerRef.current = null;
+    }
+
+    if (!validationIssues || validationIssues.length === 0) return;
+
+    const validFeatures = validationIssues
+      .filter((i) => i.geometryGeoJson && i.status !== 'RESOLVED')
+      .map((i) => {
+        try {
+          return {
+            type: 'Feature',
+            geometry: JSON.parse(i.geometryGeoJson!),
+            properties: {
+              id: i.id,
+              ruleCode: i.ruleCode,
+              severity: i.severity,
+              assetName: i.assetName,
+              message: i.message,
+              status: i.status,
+            },
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    if (validFeatures.length === 0) return;
+
+    const valLayer = L.geoJSON(
+      { type: 'FeatureCollection', features: validFeatures as any } as any,
+      {
+        pointToLayer: (feature, latlng) => {
+          const isError = feature.properties.severity === 'ERROR';
+          const color = isError ? '#ef4444' : '#f59e0b';
+          return L.circleMarker(latlng, {
+            radius: 8,
+            color: color,
+            weight: 3,
+            fillColor: color,
+            fillOpacity: 0.6,
+            dashArray: '3, 3',
+          });
+        },
+        style: (feature) => {
+          const isError = feature?.properties?.severity === 'ERROR';
+          const color = isError ? '#ef4444' : '#f59e0b';
+          return {
+            color: color,
+            weight: 3,
+            opacity: 0.85,
+            dashArray: '4, 4',
+            fillColor: color,
+            fillOpacity: 0.25,
+          };
+        },
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties;
+          layer.bindTooltip(
+            `<div class="p-1 font-sans">
+              <div class="font-bold ${p.severity === 'ERROR' ? 'text-rose-400' : 'text-amber-400'} text-xs">
+                [${p.severity}] ${p.ruleCode}
+              </div>
+              <div class="text-white text-xs font-semibold">${p.assetName}</div>
+              <div class="text-slate-300 text-[11px] max-w-[200px]">${p.message}</div>
+            </div>`,
+            { direction: 'top', offset: [0, -5], opacity: 0.95 }
+          );
+        },
+      }
+    );
+
+    valLayer.addTo(map);
+    validationLayerRef.current = valLayer;
+  }, [validationIssues]);
 
   return (
     <div className="relative w-full h-full">

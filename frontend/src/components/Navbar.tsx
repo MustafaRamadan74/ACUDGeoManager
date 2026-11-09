@@ -15,6 +15,7 @@ import {
   Compass,
   Filter,
   Navigation,
+  ShieldAlert,
   ChevronDown,
   Pentagon,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ interface NavbarProps {
   isSelectingPolygon: boolean;
   onOpenSelectByAttribute: () => void;
   onOpenNearestModal: () => void;
+  onOpenValidation?: () => void;
   spatialResultsCount?: number;
   onToggleResultsDrawer?: () => void;
   isResultsDrawerOpen?: boolean;
@@ -49,6 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSelectingPolygon,
   onOpenSelectByAttribute,
   onOpenNearestModal,
+  onOpenValidation,
   spatialResultsCount = 0,
   onToggleResultsDrawer,
   isResultsDrawerOpen = false,
@@ -251,6 +254,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
           <span className="hidden lg:inline">{isAr ? 'ملخص الشبكة' : 'Summary'}</span>
         </button>
+
+        {/* Validation Engine Dashboard */}
+        {onOpenValidation && (
+          <button
+            onClick={onOpenValidation}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs font-semibold border border-rose-800/60 transition shadow-sm"
+            title={isAr ? 'لوحة تدقيق ومطابقة قواعد البيانات الجغرافية' : 'Validation Dashboard'}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden lg:inline">{isAr ? 'التدقيق' : 'Validation'}</span>
+          </button>
+        )}
 
         {/* User Admin (Admin Only) */}
         {isAdmin && (

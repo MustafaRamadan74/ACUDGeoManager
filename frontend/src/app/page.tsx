@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/lib/api';
-import { FeatureTypeDto, GeoJsonFeature, NetworkDto } from '@/lib/types';
+import { FeatureTypeDto, GeoJsonFeature, NetworkDto, ValidationIssueDto } from '@/lib/types';
 import { Navbar } from '@/components/Navbar';
 import { Sidebar } from '@/components/Sidebar';
 import { FeatureDetails } from '@/components/FeatureDetails';
@@ -19,6 +19,7 @@ import { UserAdminModal } from '@/components/UserAdminModal';
 import { SpatialSelectionModal } from '@/components/SpatialSelectionModal';
 import { NearestQueryModal } from '@/components/NearestQueryModal';
 import { SpatialResultsDrawer } from '@/components/SpatialResultsDrawer';
+import { ValidationDashboardModal } from '@/components/ValidationDashboardModal';
 import { useToast } from '@/components/Toast';
 import { Loader2 } from 'lucide-react';
 
@@ -59,6 +60,8 @@ export default function GisPage() {
   const [isTableOpen, setIsTableOpen] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isValidationOpen, setIsValidationOpen] = useState(false);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssueDto[]>([]);
 
   // Spatial Selection & Query State
   const [isAttributeModalOpen, setIsAttributeModalOpen] = useState(false);
@@ -339,6 +342,7 @@ export default function GisPage() {
         isSelectingPolygon={isSelectingPolygon}
         onOpenSelectByAttribute={() => setIsAttributeModalOpen(true)}
         onOpenNearestModal={() => setIsNearestModalOpen(true)}
+        onOpenValidation={() => setIsValidationOpen(true)}
         spatialResultsCount={spatialResults.length}
         onToggleResultsDrawer={() => setIsResultsDrawerOpen(!isResultsDrawerOpen)}
         isResultsDrawerOpen={isResultsDrawerOpen}
@@ -380,6 +384,7 @@ export default function GisPage() {
             visibleTypes={visibleTypes}
             selectedFeatureId={selectedFeature?.id || null}
             highlightedFeatureIds={highlightedFeatureIds}
+            validationIssues={validationIssues}
             targetZoomFeature={targetZoomFeature}
             fitFeaturesBounds={fitFeaturesBounds}
             canEdit={canEdit}
@@ -504,6 +509,17 @@ export default function GisPage() {
           onClose={() => setIsAdminOpen(false)}
         />
       )}
+
+      {/* Validation Quality Dashboard Modal */}
+      <ValidationDashboardModal
+        isOpen={isValidationOpen}
+        onClose={() => setIsValidationOpen(false)}
+        networks={networks}
+        activeNetworkId={activeNetworkId}
+        onSelectNetwork={setActiveNetworkId}
+        onZoomToIssue={handleZoomToFeature}
+        onIssuesUpdated={setValidationIssues}
+      />
     </div>
   );
 }

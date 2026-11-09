@@ -36,6 +36,21 @@ public static class DataServiceExtensions
         services.AddScoped<IFeatureRepository, FeatureRepository>();
         services.AddScoped<IFeatureService, FeatureService>();
 
+        // Validation Engine & Rules
+        services.AddScoped<IValidationRepository, ValidationRepository>();
+        services.AddScoped<IValidationService, ValidationService>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.InvalidGeometryRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.EmptyGeometryRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.ZeroLengthLineRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.DuplicateFeaturesRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.MissingRequiredAttributeRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.OverlappingPolygonsRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.FeatureOutsideBoundaryRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.ValveOffPipeRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.DanglingLineRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.ReversedFlowRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.IsolatedNoSourceRule>();
+
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);
 

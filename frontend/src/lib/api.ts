@@ -22,6 +22,11 @@ import {
   NearestQueryParams,
   LayerPermissionDto,
   UpdateLayerPermissionRequest,
+  ValidationRunDto,
+  ValidationIssuePageResult,
+  ValidationIssueDto,
+  ValidationIssueQuery,
+  IssueStatus,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -378,6 +383,45 @@ export const api = {
     await request<void>(`/users/${id}/permissions`, {
       method: 'PUT',
       body: JSON.stringify({ permissions }),
+    });
+  },
+
+  // Validation Engine
+  runValidation: async (networkId: string): Promise<ValidationRunDto> => {
+    return await request<ValidationRunDto>(`/networks/${networkId}/validation/run`, {
+      method: 'POST',
+    });
+  },
+
+  getValidationRuns: async (networkId?: string, limit = 20): Promise<ValidationRunDto[]> => {
+    const params = new URLSearchParams();
+    if (networkId) params.set('networkId', networkId);
+    params.set('limit', limit.toString());
+    return await request<ValidationRunDto[]>(`/validation/runs?${params.toString()}`);
+  },
+
+  getValidationRun: async (runId: string): Promise<ValidationRunDto> => {
+    return await request<ValidationRunDto>(`/validation/runs/${runId}`);
+  },
+
+  queryValidationIssues: async (query: ValidationIssueQuery): Promise<ValidationIssuePageResult> => {
+    const params = new URLSearchParams();
+    if (query.runId) params.set('runId', query.runId);
+    if (query.networkId) params.set('networkId', query.networkId);
+    if (query.status) params.set('status', query.status);
+    if (query.severity) params.set('severity', query.severity);
+    if (query.ruleCode) params.set('ruleCode', query.ruleCode);
+    if (query.featureTable) params.set('featureTable', query.featureTable);
+    if (query.page) params.set('page', query.page.toString());
+    if (query.pageSize) params.set('pageSize', query.pageSize.toString());
+
+    return await request<ValidationIssuePageResult>(`/validation/issues?${params.toString()}`);
+  },
+
+  updateIssueStatus: async (id: string, status: IssueStatus): Promise<ValidationIssueDto> => {
+    return await request<ValidationIssueDto>(`/validation/issues/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     });
   },
 };

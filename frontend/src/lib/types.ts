@@ -277,3 +277,61 @@ export interface NearestQueryParams {
   maxDistanceM?: number | null;
   limit?: number;
 }
+
+// --- Validation Engine ---
+
+export type ValidationSeverity = 'ERROR' | 'WARNING' | 'INFO';
+export type IssueStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
+
+export interface ValidationSummaryDto {
+  totalIssues: number;
+  errorsCount: number;
+  warningsCount: number;
+  infosCount: number;
+  durationMs: number;
+  rulesExecuted: string[];
+}
+
+export interface ValidationRunDto {
+  id: string;
+  networkId: string;
+  startedBy: string;
+  startedAt: string;
+  finishedAt?: string | null;
+  summary: ValidationSummaryDto;
+}
+
+export interface ValidationIssueDto {
+  id: string;
+  runId: string;
+  ruleCode: string;
+  severity: ValidationSeverity;
+  featureTable: string;
+  featureId: string;
+  assetName: string;
+  message: string;
+  geometryGeoJson?: string | null;
+  status: IssueStatus;
+  acknowledgedBy?: string | null;
+  acknowledgedAt?: string | null;
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+}
+
+export interface ValidationIssuePageResult {
+  items: ValidationIssueDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ValidationIssueQuery {
+  runId?: string;
+  networkId?: string;
+  status?: IssueStatus;
+  severity?: ValidationSeverity;
+  ruleCode?: string;
+  featureTable?: string;
+  page?: number;
+  pageSize?: number;
+}

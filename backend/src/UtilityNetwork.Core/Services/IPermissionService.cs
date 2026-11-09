@@ -26,3 +26,4 @@ public interface IPermissionService
         IEnumerable<UpdateLayerPermissionRequest> permissions,
         CancellationToken ct = default);
 }
+

@@ -27,3 +27,4 @@ public sealed record UpdateLayerPermissionRequest(
 
 public sealed record UserLayerPermissionsUpdateRequest(
     IReadOnlyList<UpdateLayerPermissionRequest> Permissions);
+
