@@ -293,3 +293,63 @@ GIS engineers working in Esri ArcGIS Pro can exchange layers (Shapefiles or File
    - The map updates automatically with the new assets.
    - If needed, the entire import batch can be undone in a single step using the **Undo** button.
 
+
+---
+
+## 9. Offline Basemap Hosting Guide for Air-Gapped & On-Premises Deployments
+
+In air-gapped enterprise environments or high-security municipal data centers (such as internal government networks in the New Administrative Capital), external internet connectivity to public tile providers (OpenStreetMap, CartoDB, Esri) may be restricted or unavailable. ACUDGeoManager is designed to support fully offline, self-hosted basemap tile services.
+
+### Recommended Architecture: TileServer GL / Martin with MBTiles & PMTiles
+
+```
+┌────────────────────────┐      ┌───────────────────────────┐      ┌────────────────────────┐
+│   ACUDGeoManager UI    │ ───> │ Nginx SSL Reverse Proxy   │ ───> │ TileServer GL / Martin │
+│ (Leaflet TileLayer)    │      │ (acud.gov.local/tiles)    │      │ (Docker / On-Premises) │
+└────────────────────────┘      └───────────────────────────┘      └────────────────────────┘
+                                                                               │
+                                                                               ▼
+                                                                   ┌────────────────────────┐
+                                                                   │ Egypt / NAC MBTiles    │
+                                                                   │ (Raster & Vector PBF)  │
+                                                                   └────────────────────────┘
+```
+
+### Option A: TileServer GL with Raster MBTiles (Standard Setup)
+
+1. **Obtain or Generate Tile Archive**:
+   - Download or generate Egypt/Cairo regional MBTiles (from OpenMapTiles, Planetiler, or ACUD aerial imagery flights):
+     `egypt-nac.mbtiles`
+2. **Deploy TileServer GL via Docker**:
+   ```yaml
+   # docker-compose.offline-tiles.yml
+   version: '3.8'
+   services:
+     tileserver:
+       image: maptiler/tileserver-gl:latest
+       container_name: acud_offline_tiles
+       restart: always
+       ports:
+         - "8080:8080"
+       volumes:
+         - ./tiles:/data
+       command: -p 8080 -c /data/config.json
+   ```
+3. **Configure Tile Endpoint in ACUDGeoManager**:
+   - Point the basemap URL in `BasemapControl.tsx` or the `.env` configuration to the internal server:
+     `http://acud-tiles.local:8080/styles/osm-bright/{z}/{x}/{y}.png`
+
+### Option B: Martin High-Performance Rust Vector Tile Server
+
+For ultra-low latency, Martin connects directly to PostGIS or PMTiles files:
+```bash
+docker run -d --name acud_martin \
+  -p 3000:3000 \
+  -v /var/data/tiles:/files \
+  maplibre/martin --save-config /files/config.yaml /files/egypt_nac.pmtiles
+```
+
+### Attribution & Licensing Compliance for Air-Gapped Deployments
+- OpenStreetMap data extracted into offline MBTiles requires the standard ODbL attribution: `© OpenStreetMap contributors`.
+- ACUD orthophoto and high-resolution UAV aerial surveys should specify the department attribution watermark (e.g. `© ACUD Survey & Mapping Directorate`).
+- ACUDGeoManager automatically includes the configured basemap attribution in map exports and printed outputs.

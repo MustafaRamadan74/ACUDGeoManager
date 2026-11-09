@@ -427,4 +427,24 @@ export interface ImportCommitResultDto {
   featureIds: string[];
 }
 
+export interface BookmarkDto {
+  id: string;
+  userId: string;
+  name: string;
+  centerLon: number;
+  centerLat: number;
+  zoom: number;
+  bbox?: string | null;
+  createdAt: string;
+}
+
+export interface CreateBookmarkRequest {
+  name: string;
+  centerLon: number;
+  centerLat: number;
+  zoom: number;
+  bbox?: string | null;
+}
+
+
 

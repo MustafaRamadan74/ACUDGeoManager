@@ -34,6 +34,8 @@ import {
   ImportPreviewResultDto,
   ImportCommitRequest,
   ImportCommitResultDto,
+  BookmarkDto,
+  CreateBookmarkRequest,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -497,6 +499,24 @@ export const api = {
     return await request<ImportCommitResultDto>('/import/commit', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  // Bookmarks
+  getBookmarks: async (): Promise<BookmarkDto[]> => {
+    return await request<BookmarkDto[]>('/bookmarks');
+  },
+
+  createBookmark: async (data: CreateBookmarkRequest): Promise<BookmarkDto> => {
+    return await request<BookmarkDto>('/bookmarks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteBookmark: async (id: string): Promise<void> => {
+    await request<void>(`/bookmarks/${id}`, {
+      method: 'DELETE',
     });
   },
 };

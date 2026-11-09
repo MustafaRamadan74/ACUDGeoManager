@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
+import { Maximize2, Minimize2, Printer } from 'lucide-react';
 import { FeatureTypeDto, GeoJsonFeature, ValidationIssueDto } from '@/lib/types';
+import { BasemapControl, BASEMAPS, BasemapKey } from '@/components/Map/BasemapControl';
+import { BookmarksControl } from '@/components/Map/BookmarksControl';
+import { LiveCoordinatesBar } from '@/components/Map/LiveCoordinatesBar';
+import { useAuth } from '@/lib/authContext';
 
 interface MapComponentProps {
   features: GeoJsonFeature[];
@@ -43,11 +48,31 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   onDrawingComplete,
   onPolygonSelected,
 }) => {
+  const { lang } = useAuth();
+  const isAr = lang === 'ar';
+
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const geojsonLayerRef = useRef<L.GeoJSON | null>(null);
   const validationLayerRef = useRef<L.GeoJSON | null>(null);
+  const basemapLayerRef = useRef<L.TileLayer | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Basemap state with localStorage persistence
+  const [currentBasemap, setCurrentBasemap] = useState<BasemapKey>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('acud_basemap') as BasemapKey;
+      if (saved && saved in BASEMAPS) return saved;
+    }
+    return 'osm';
+  });
+
+  // Coordinates and Zoom tracking
+  const [cursorCoords, setCursorCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [currentZoom, setCurrentZoom] = useState<number>(14);
+
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const onDrawingCompleteRef = useRef(onDrawingComplete);
   const onPolygonSelectedRef = useRef(onPolygonSelected);
@@ -70,6 +95,56 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     onCenterChangeRef.current = onCenterChange;
   }, [onCenterChange]);
 
+  // Handle Fullscreen Toggle
+  const toggleFullscreen = () => {
+    const el = mapContainerRef.current?.parentElement || mapContainerRef.current;
+    if (!el) return;
+
+    if (!document.fullscreenElement) {
+      el.requestFullscreen().then(() => setIsFullscreen(true)).catch(console.error);
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(console.error);
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+      setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 150);
+    };
+
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  // Handle Print / Export
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // Fly to location (used by Bookmarks)
+  const handleFlyTo = (lat: number, lon: number, zoom: number) => {
+    if (!mapInstanceRef.current) return;
+    mapInstanceRef.current.flyTo([lat, lon], zoom, { animate: true, duration: 1 });
+  };
+
+  // Get current view (used by Bookmarks)
+  const getCurrentView = () => {
+    const map = mapInstanceRef.current;
+    if (!map) {
+      return { center: [31.748, 30.015] as [number, number], zoom: 14 };
+    }
+    const c = map.getCenter();
+    const b = map.getBounds();
+    return {
+      center: [c.lng, c.lat] as [number, number],
+      zoom: map.getZoom(),
+      bbox: JSON.stringify([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]),
+    };
+  };
+
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
@@ -85,11 +160,30 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     // Add Zoom control at top-left
     L.control.zoom({ position: 'topleft' }).addTo(map);
 
-    // OpenStreetMap Basemap Layer
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | ACUD',
-      maxZoom: 19,
+    // Add Metric Scale Bar at bottom-left
+    L.control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(map);
+
+    // Initial Basemap
+    const def = BASEMAPS[currentBasemap] || BASEMAPS.osm;
+    const initialTile = L.tileLayer(def.url, {
+      attribution: def.attribution + ' | ACUD GeoManager',
+      maxZoom: def.maxZoom,
     }).addTo(map);
+    basemapLayerRef.current = initialTile;
+
+    // Initial cursor / center coords
+    setCursorCoords({ lat: 30.015, lon: 31.748 });
+    setCurrentZoom(map.getZoom());
+
+    // Track Cursor Coordinates on mousemove
+    map.on('mousemove', (e: L.LeafletMouseEvent) => {
+      setCursorCoords({ lat: e.latlng.lat, lon: e.latlng.lng });
+    });
+
+    // Track Zoom level
+    map.on('zoomend', () => {
+      setCurrentZoom(map.getZoom());
+    });
 
     // Leaflet-Geoman Snapping & Drawing Configuration
     const pm = (map as any).pm;
@@ -182,6 +276,32 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     };
   }, []);
 
+  // Update Basemap Layer when currentBasemap changes
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const def = BASEMAPS[currentBasemap] || BASEMAPS.osm;
+
+    if (basemapLayerRef.current) {
+      map.removeLayer(basemapLayerRef.current);
+    }
+
+    const newTile = L.tileLayer(def.url, {
+      attribution: def.attribution + ' | ACUD GeoManager',
+      maxZoom: def.maxZoom,
+    }).addTo(map);
+
+    newTile.bringToBack();
+    basemapLayerRef.current = newTile;
+
+    try {
+      localStorage.setItem('acud_basemap', currentBasemap);
+    } catch {
+      // ignore storage error
+    }
+  }, [currentBasemap]);
+
   // React to Polygon Selection Mode Toggle
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -272,7 +392,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
   }, [canEdit, isSelectingPolygon]);
 
-  // Update GeoJSON features on map
+  // Update GeoJSON features on map with attribute-based dynamic styling
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -302,10 +422,29 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           const isSelected = fId === selectedFeatureId;
           const isHighlighted = Boolean(fId && highlightedFeatureIds?.has(fId));
 
+          const props = feature.properties || {};
+          const status = String(props.status || '').toUpperCase();
+          const isOpen = props.is_open ?? props.isOpen;
+
           let fillColor = style.fillColor || style.color || '#3B82F6';
           let strokeColor = style.color || '#1E40AF';
           let radius = style.radius || 7;
           let weight = style.weight || 2;
+
+          // Valve attribute styling (open vs closed)
+          if (isOpen === false) {
+            fillColor = '#EF4444'; // Red for closed valve
+            strokeColor = '#991B1B';
+          } else if (isOpen === true) {
+            fillColor = '#10B981'; // Green for open valve
+            strokeColor = '#065F46';
+          }
+
+          // Inactive / Abandoned status
+          if (status === 'INACTIVE' || status === 'ABANDONED') {
+            fillColor = '#64748B';
+            strokeColor = '#334155';
+          }
 
           if (isHighlighted) {
             fillColor = '#06B6D4'; // Vibrant Cyan
@@ -320,6 +459,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           }
 
           return L.circleMarker(latlng, {
+            pane: 'markerPane', // Renders on top of overlay polylines and polygons
             radius,
             fillColor,
             color: strokeColor,
@@ -336,20 +476,48 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           const isSelected = fId === selectedFeatureId;
           const isHighlighted = Boolean(fId && highlightedFeatureIds?.has(fId));
 
+          const props = feature.properties || {};
+          const status = String(props.status || '').toUpperCase();
+          const diameter = Number(props.diameter_mm || props.diameter || 0);
+
           let strokeColor = style.color || '#2563EB';
           let fillColor = style.fillColor || style.color || '#3B82F6';
           let weight = style.weight || 3;
           let fillOpacity = style.fillOpacity || 0.25;
+          let dashArray = style.dashArray || undefined;
+
+          // Thematic attribute styling based on status
+          if (status === 'UNDER_CONSTRUCTION') {
+            strokeColor = '#F59E0B'; // Amber
+            fillColor = '#FBBF24';
+            dashArray = '5, 5';
+          } else if (status === 'INACTIVE' || status === 'ABANDONED') {
+            strokeColor = '#64748B'; // Slate / Gray
+            fillColor = '#94A3B8';
+            dashArray = '3, 4';
+          } else if (status === 'MAINTENANCE') {
+            strokeColor = '#EC4899'; // Pink
+            dashArray = '7, 4';
+          }
+
+          // Pipe diameter scaling for lines
+          if (diameter > 0) {
+            if (diameter >= 1000) weight = 6;
+            else if (diameter >= 600) weight = 5;
+            else if (diameter >= 300) weight = 4;
+            else if (diameter >= 150) weight = 3;
+            else weight = 2;
+          }
 
           if (isHighlighted) {
             strokeColor = '#06B6D4';
             fillColor = '#22D3EE';
-            weight = 5;
+            weight = Math.max(weight + 2, 5);
             fillOpacity = 0.55;
           } else if (isSelected) {
             strokeColor = '#F59E0B';
             fillColor = '#FBBF24';
-            weight = 5;
+            weight = Math.max(weight + 2, 5);
             fillOpacity = 0.5;
           }
 
@@ -359,17 +527,21 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             opacity: 0.95,
             fillColor,
             fillOpacity,
-            dashArray: style.dashArray || undefined,
+            dashArray,
           };
         },
         onEachFeature: (feature, layer) => {
           const name = feature.properties?.name || 'Feature';
           const type = feature.properties?.featureTypeCode || '';
+          const status = feature.properties?.status;
+          const diameter = feature.properties?.diameter_mm || feature.properties?.diameter;
           const dist = feature.properties?.distanceMeters ?? (feature.properties as any)?.distance_meters;
+
           const distStr = dist !== undefined ? `<div class="text-[10px] text-amber-400 font-mono font-bold mt-0.5">🎯 ${Number(dist).toFixed(1)}m</div>` : '';
+          const statusStr = status ? `<div class="text-[10px] text-slate-400 font-sans mt-0.5">${status} ${diameter ? `(Ø ${diameter}mm)` : ''}</div>` : '';
 
           layer.bindTooltip(
-            `<div class="font-bold text-xs">${name}</div><div class="text-[10px] text-slate-500 font-mono">${type}</div>${distStr}`,
+            `<div class="font-bold text-xs">${name}</div><div class="text-[10px] text-slate-500 font-mono">${type}</div>${statusStr}${distStr}`,
             { direction: 'top', offset: [0, -5], opacity: 0.9 }
           );
 
@@ -468,18 +640,83 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   }, [validationIssues]);
 
   return (
-    <div className="relative w-full h-full">
+    <div id="map-wrapper" className="relative w-full h-full select-none">
       <div ref={mapContainerRef} className="w-full h-full z-0" />
+
+      {/* Top Floating Map Tools Toolbar */}
+      <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2 no-print">
+        {/* Basemap Switcher */}
+        <BasemapControl
+          currentBasemap={currentBasemap}
+          onSelectBasemap={setCurrentBasemap}
+          isAr={isAr}
+        />
+
+        {/* Spatial Bookmarks */}
+        <BookmarksControl
+          onFlyTo={handleFlyTo}
+          getCurrentView={getCurrentView}
+          isAr={isAr}
+        />
+
+        {/* Fullscreen Button */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="p-2 rounded-xl backdrop-blur-md shadow-lg border bg-slate-900/85 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-slate-600 transition flex items-center justify-center"
+          title={isAr ? (isFullscreen ? 'إنهاء وضع ملء الشاشة' : 'ملء الشاشة') : (isFullscreen ? 'Exit Fullscreen' : 'Fullscreen')}
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-4 h-4 text-sky-400" />
+          ) : (
+            <Maximize2 className="w-4 h-4 text-sky-400" />
+          )}
+        </button>
+
+        {/* Print / Export Map Image Button */}
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="p-2 rounded-xl backdrop-blur-md shadow-lg border bg-slate-900/85 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-slate-600 transition flex items-center justify-center"
+          title={isAr ? 'طباعة / تصدير صورة الخريطة' : 'Print / Export Map Image'}
+        >
+          <Printer className="w-4 h-4 text-emerald-400" />
+        </button>
+      </div>
 
       {/* Floating Banner when Polygon Selection is active */}
       {isSelectingPolygon && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-sky-950/90 backdrop-blur-md border border-sky-500/50 text-white text-xs px-4 py-2 rounded-xl shadow-xl flex items-center gap-3 animate-pulse">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-sky-950/90 backdrop-blur-md border border-sky-500/50 text-white text-xs px-4 py-2 rounded-xl shadow-xl flex items-center gap-3 animate-pulse no-print">
           <div className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
           <span className="font-medium">
-            انقر على الخريطة لرسم مضلع التحديد المكاني (Double click to finish)
+            {isAr
+              ? 'انقر على الخريطة لرسم مضلع التحديد المكاني (انقر مرتين للإنهاء)'
+              : 'Click on the map to draw selection polygon (Double-click to finish)'}
           </span>
         </div>
       )}
+
+      {/* Bottom Coordinates & Scale Info Bar */}
+      <div className="no-print">
+        <LiveCoordinatesBar
+          lat={cursorCoords?.lat ?? null}
+          lon={cursorCoords?.lon ?? null}
+          zoom={currentZoom}
+          isAr={isAr}
+        />
+      </div>
+
+      {/* Watermark Attribution on Print */}
+      <div className="hidden print:flex fixed bottom-3 left-4 right-4 z-50 bg-white/95 text-slate-900 border border-slate-300 rounded-lg p-2.5 text-xs justify-between items-center shadow">
+        <div className="flex items-center gap-2">
+          <span className="font-bold">ACUD GeoManager — New Administrative Capital GIS</span>
+          <span className="text-slate-400">|</span>
+          <span className="font-medium">{BASEMAPS[currentBasemap]?.nameEn || 'OpenStreetMap'}</span>
+        </div>
+        <div className="text-[11px] text-slate-600 font-mono">
+          {BASEMAPS[currentBasemap]?.attribution.replace(/<[^>]+>/g, '')}
+        </div>
+      </div>
     </div>
   );
 };

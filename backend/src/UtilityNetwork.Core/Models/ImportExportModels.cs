@@ -84,3 +84,4 @@ public sealed class ParsedImportFeature
     public string? DuplicateReason { get; set; }
     public List<ImportRowErrorDto> Errors { get; set; } = new();
 }
+

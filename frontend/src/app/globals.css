@@ -46,3 +46,34 @@ body {
   background: #94a3b8;
 }
 
+/* Print Styles for Map Export */
+@media print {
+  body {
+    overflow: visible !important;
+    background: white !important;
+    color: black !important;
+  }
+  nav, .no-print, [role="dialog"], button, .leaflet-control-zoom, .leaflet-control-pm {
+    display: none !important;
+  }
+  .leaflet-container {
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+  .print-header {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 20px;
+    background: white;
+    border-bottom: 2px solid #0284c7;
+    z-index: 9999;
+  }
+}
+.print-header {
+  display: none;
+}
+
+
