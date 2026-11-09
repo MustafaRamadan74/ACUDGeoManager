@@ -18,6 +18,9 @@ import {
   ShieldAlert,
   ChevronDown,
   Pentagon,
+  Undo2,
+  Redo2,
+  History,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -33,6 +36,11 @@ interface NavbarProps {
   onOpenSelectByAttribute: () => void;
   onOpenNearestModal: () => void;
   onOpenValidation?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onOpenHistory?: () => void;
   spatialResultsCount?: number;
   onToggleResultsDrawer?: () => void;
   isResultsDrawerOpen?: boolean;
@@ -52,6 +60,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSelectByAttribute,
   onOpenNearestModal,
   onOpenValidation,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+  onOpenHistory,
   spatialResultsCount = 0,
   onToggleResultsDrawer,
   isResultsDrawerOpen = false,
@@ -230,6 +243,45 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden xl:inline">{isAr ? 'نتائج' : 'selected'}</span>
           </button>
         )}
+
+        {/* Undo / Redo & History Stack Buttons */}
+        <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/80">
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            className={`p-1.5 rounded-md transition ${
+              canUndo
+                ? 'text-amber-400 hover:text-amber-300 hover:bg-slate-700'
+                : 'text-slate-600 cursor-not-allowed'
+            }`}
+            title={isAr ? 'تراجع (Ctrl+Z)' : 'Undo (Ctrl+Z)'}
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            className={`p-1.5 rounded-md transition ${
+              canRedo
+                ? 'text-sky-400 hover:text-sky-300 hover:bg-slate-700'
+                : 'text-slate-600 cursor-not-allowed'
+            }`}
+            title={isAr ? 'إعادة (Ctrl+Y)' : 'Redo (Ctrl+Y)'}
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="h-4 w-px bg-slate-700 mx-0.5" />
+
+          <button
+            onClick={onOpenHistory}
+            className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition"
+            title={isAr ? 'سجل التعديلات ومكدس العمليات' : 'History & Change Stack'}
+          >
+            <History className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
         {/* Toggle Attribute Table */}
         <button

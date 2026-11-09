@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/lib/api';
-import { FeatureTypeDto, GeoJsonFeature, NetworkDto, ValidationIssueDto } from '@/lib/types';
+import { FeatureTypeDto, GeoJsonFeature, NetworkDto, ValidationIssueDto, UndoRedoStackDto } from '@/lib/types';
 import { Navbar } from '@/components/Navbar';
 import { Sidebar } from '@/components/Sidebar';
 import { FeatureDetails } from '@/components/FeatureDetails';
@@ -20,6 +20,7 @@ import { SpatialSelectionModal } from '@/components/SpatialSelectionModal';
 import { NearestQueryModal } from '@/components/NearestQueryModal';
 import { SpatialResultsDrawer } from '@/components/SpatialResultsDrawer';
 import { ValidationDashboardModal } from '@/components/ValidationDashboardModal';
+import { HistoryPanelModal } from '@/components/HistoryPanelModal';
 import { useToast } from '@/components/Toast';
 import { Loader2 } from 'lucide-react';
 
@@ -61,6 +62,8 @@ export default function GisPage() {
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isValidationOpen, setIsValidationOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyStack, setHistoryStack] = useState<UndoRedoStackDto | null>(null);
   const [validationIssues, setValidationIssues] = useState<ValidationIssueDto[]>([]);
 
   // Spatial Selection & Query State
@@ -300,11 +303,105 @@ export default function GisPage() {
     );
   };
 
+  // History & Undo / Redo handlers
+  const refreshHistoryStack = useCallback(async () => {
+    try {
+      const res = await api.getHistoryStack();
+      setHistoryStack(res);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshHistoryStack();
+    }
+  }, [isAuthenticated, refreshHistoryStack]);
+
+  const handleUndo = useCallback(async () => {
+    try {
+      const res = await api.undoLatest();
+      showSuccess(
+        isAr ? 'تراجع ناجح' : 'Undo Successful',
+        isAr ? `تم التراجع عن "${res.description}"` : `Undid "${res.description}"`
+      );
+      if (currentBboxRef.current) {
+        fetchFeatures(currentBboxRef.current);
+      }
+      refreshHistoryStack();
+    } catch (err: any) {
+      if (err?.status === 409) {
+        showError(
+          isAr ? 'تعارض في التراجع' : 'Undo Conflict',
+          isAr
+            ? 'تعذر التراجع لوجود تعديلات لاحقة على المعلم المعني'
+            : 'Cannot undo because affected features have conflicts'
+        );
+      } else {
+        showError(isAr ? 'خطأ' : 'Error', err?.message || 'Undo failed');
+      }
+    }
+  }, [isAr, fetchFeatures, refreshHistoryStack, showError, showSuccess]);
+
+  const handleRedo = useCallback(async () => {
+    try {
+      const res = await api.redoLatest();
+      showSuccess(
+        isAr ? 'إعادة ناجحة' : 'Redo Successful',
+        isAr ? `تمت إعادة تطبيق "${res.description}"` : `Redid "${res.description}"`
+      );
+      if (currentBboxRef.current) {
+        fetchFeatures(currentBboxRef.current);
+      }
+      refreshHistoryStack();
+    } catch (err: any) {
+      if (err?.status === 409) {
+        showError(
+          isAr ? 'تعارض في الإعادة' : 'Redo Conflict',
+          isAr
+            ? 'تعذر الإعادة لوجود تعارض في البيانات المعنية'
+            : 'Cannot redo because affected features have conflicts'
+        );
+      } else {
+        showError(isAr ? 'خطأ' : 'Error', err?.message || 'Redo failed');
+      }
+    }
+  }, [isAr, fetchFeatures, refreshHistoryStack, showError, showSuccess]);
+
+  // Global hotkeys for Undo (Ctrl+Z) and Redo (Ctrl+Y / Ctrl+Shift+Z)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          if (historyStack?.canUndo) {
+            handleUndo();
+          }
+        } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey) || (e.key === 'Z' && e.shiftKey)) {
+          e.preventDefault();
+          if (historyStack?.canRedo) {
+            handleRedo();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyStack, handleUndo, handleRedo]);
+
   // Callback after feature is created or edited
   const handleFeatureSaved = () => {
     if (currentBboxRef.current) {
       fetchFeatures(currentBboxRef.current);
     }
+    refreshHistoryStack();
   };
 
   // Callback after feature is deleted
@@ -315,8 +412,8 @@ export default function GisPage() {
     if (currentBboxRef.current) {
       fetchFeatures(currentBboxRef.current);
     }
-    // Also remove from spatial results if present
     setSpatialResults((prev) => prev.filter((f) => f.id !== deletedId));
+    refreshHistoryStack();
   };
 
   if (authLoading || !isAuthenticated) {
@@ -343,6 +440,11 @@ export default function GisPage() {
         onOpenSelectByAttribute={() => setIsAttributeModalOpen(true)}
         onOpenNearestModal={() => setIsNearestModalOpen(true)}
         onOpenValidation={() => setIsValidationOpen(true)}
+        canUndo={historyStack?.canUndo ?? false}
+        canRedo={historyStack?.canRedo ?? false}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onOpenHistory={() => setIsHistoryOpen(true)}
         spatialResultsCount={spatialResults.length}
         onToggleResultsDrawer={() => setIsResultsDrawerOpen(!isResultsDrawerOpen)}
         isResultsDrawerOpen={isResultsDrawerOpen}
@@ -519,6 +621,18 @@ export default function GisPage() {
         onSelectNetwork={setActiveNetworkId}
         onZoomToIssue={handleZoomToFeature}
         onIssuesUpdated={setValidationIssues}
+      />
+
+      {/* Undo / Redo & History Stack Modal */}
+      <HistoryPanelModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onStackChanged={() => {
+          refreshHistoryStack();
+          if (currentBboxRef.current) {
+            fetchFeatures(currentBboxRef.current);
+          }
+        }}
       />
     </div>
   );

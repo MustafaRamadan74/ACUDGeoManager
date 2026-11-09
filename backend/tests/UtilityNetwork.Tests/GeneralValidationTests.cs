@@ -97,7 +97,7 @@ public sealed class GeneralValidationTests : IClassFixture<WebApplicationFactory
         Assert.True(run.Summary.TotalIssues >= 6, "Must detect at least the 6 planted water defects.");
 
         // 2. Query issues
-        var issuesRes = await client.GetAsync($"/api/v1/validation/issues?runId={run.Id}&pageSize=100");
+        var issuesRes = await client.GetAsync($"/api/v1/validation/issues?runId={run.Id}&pageSize=500");
         var pageResult = await issuesRes.Content.ReadFromJsonAsync<ValidationIssuePageResult>();
         Assert.NotNull(pageResult);
 

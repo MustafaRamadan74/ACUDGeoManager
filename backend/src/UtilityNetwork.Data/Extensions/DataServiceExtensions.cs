@@ -28,6 +28,8 @@ public static class DataServiceExtensions
         services.AddSingleton<IUnitOfWorkFactory, UnitOfWorkFactory>();
         services.AddScoped<IHistoryRepository, HistoryRepository>();
         services.AddScoped<IHistoryService, HistoryService>();
+        services.AddScoped<IUndoRedoRepository, UndoRedoRepository>();
+        services.AddScoped<IUndoRedoService, UndoRedoService>();
 
         // Catalog and Features CRUD
         services.AddScoped<ICatalogRepository, CatalogRepository>();

@@ -27,6 +27,9 @@ import {
   ValidationIssueDto,
   ValidationIssueQuery,
   IssueStatus,
+  UndoRedoStackDto,
+  UndoResultDto,
+  RedoResultDto,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -422,6 +425,23 @@ export const api = {
     return await request<ValidationIssueDto>(`/validation/issues/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    });
+  },
+
+  // Undo / Redo & History
+  getHistoryStack: async (): Promise<UndoRedoStackDto> => {
+    return await request<UndoRedoStackDto>('/history/stack');
+  },
+
+  undoLatest: async (): Promise<UndoResultDto> => {
+    return await request<UndoResultDto>('/history/undo', {
+      method: 'POST',
+    });
+  },
+
+  redoLatest: async (): Promise<RedoResultDto> => {
+    return await request<RedoResultDto>('/history/redo', {
+      method: 'POST',
     });
   },
 };

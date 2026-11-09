@@ -28,7 +28,26 @@ public sealed class UnitOfWorkFactory : IUnitOfWorkFactory
 
         var changeSetId = Guid.NewGuid();
 
-        // 1. Create change_set entry
+        // 1. If reason is NORMAL, clear that user's redo stack per specification
+        if (string.Equals(reason, "NORMAL", StringComparison.OrdinalIgnoreCase) && userContext.UserId.HasValue)
+        {
+            const string clearRedoSql = @"
+                DELETE FROM audit_log 
+                WHERE change_set_id IN (
+                    SELECT id FROM change_sets 
+                    WHERE user_id = @userId AND status = 'UNDONE'::change_set_status
+                );
+                DELETE FROM change_sets 
+                WHERE user_id = @userId AND status = 'UNDONE'::change_set_status;";
+
+            await connection.ExecuteAsync(new CommandDefinition(
+                clearRedoSql,
+                new { userId = userContext.UserId.Value },
+                transaction: transaction,
+                cancellationToken: ct));
+        }
+
+        // 2. Create change_set entry
         const string insertChangeSetSql = @"
             INSERT INTO change_sets (id, user_id, description, status)
             VALUES (@changeSetId, @userId, @description, 'APPLIED'::change_set_status);";

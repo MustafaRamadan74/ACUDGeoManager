@@ -335,3 +335,46 @@ export interface ValidationIssueQuery {
   page?: number;
   pageSize?: number;
 }
+
+// --- Undo / Redo & History ---
+export interface ChangeSetSummaryDto {
+  id: string;
+  userId?: string | null;
+  description: string;
+  status: 'APPLIED' | 'UNDONE';
+  createdAt: string;
+  undoneAt?: string | null;
+  actionsCount: number;
+  affectedFeatures: string[];
+}
+
+export interface UndoRedoStackDto {
+  canUndo: boolean;
+  canRedo: boolean;
+  undoStack: ChangeSetSummaryDto[];
+  redoStack: ChangeSetSummaryDto[];
+}
+
+export interface UndoResultDto {
+  changeSetId: string;
+  description: string;
+  revertedActionsCount: number;
+  status: string;
+}
+
+export interface RedoResultDto {
+  changeSetId: string;
+  description: string;
+  reappliedActionsCount: number;
+  status: string;
+}
+
+export interface ConflictingFeatureDto {
+  tableName: string;
+  recordId: string;
+  featureName: string;
+  expectedVersion: number;
+  currentVersion?: number | null;
+  reason: string;
+}
+
