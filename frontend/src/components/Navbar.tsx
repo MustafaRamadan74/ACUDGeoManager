@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/authContext';
 import { NetworkDto } from '@/lib/types';
 import {
   Shield,
+  ShieldCheck,
   LogOut,
   Globe,
   Layers,
@@ -40,6 +41,8 @@ interface NavbarProps {
   onOpenValidation?: () => void;
   onOpenImportExport?: () => void;
   onOpenAnalysis?: () => void;
+  onOpenApprovals?: () => void;
+  pendingApprovalsCount?: number;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -66,6 +69,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenValidation,
   onOpenImportExport,
   onOpenAnalysis,
+  onOpenApprovals,
+  pendingApprovalsCount = 0,
   canUndo = false,
   canRedo = false,
   onUndo,
@@ -100,6 +105,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         return (
           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">
             👑 Admin
+          </span>
+        );
+      case 'APPROVER':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+            🛡️ Approver
           </span>
         );
       case 'EDITOR':
@@ -346,6 +357,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Activity className="w-3.5 h-3.5 text-sky-400" />
             <span className="hidden lg:inline">{isAr ? 'التحليلات والتقارير' : 'Analysis'}</span>
+          </button>
+        )}
+
+        {/* Approvals Workflow Button (Approver or Admin) */}
+        {(user?.role === 'APPROVER' || user?.role === 'ADMIN') && onOpenApprovals && (
+          <button
+            onClick={onOpenApprovals}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition shadow-sm ${
+              pendingApprovalsCount > 0
+                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50 shadow-amber-950/40'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+            title={isAr ? 'طلبات الاعتماد وسير العمل' : 'Approval Workflow & Queue'}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden lg:inline">{isAr ? 'الاعتمادات' : 'Approvals'}</span>
+            {pendingApprovalsCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 font-mono">
+                {pendingApprovalsCount}
+              </span>
+            )}
           </button>
         )}
 

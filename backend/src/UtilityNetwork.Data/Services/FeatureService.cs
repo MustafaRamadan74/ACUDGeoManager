@@ -1,5 +1,6 @@
 using System.Security.Authentication;
 using System.Security.Claims;
+using System.Text.Json;
 using FluentValidation;
 using FluentValidation.Results;
 using UtilityNetwork.Core.Data;
@@ -17,19 +18,29 @@ public sealed class FeatureService : IFeatureService
     private readonly IFeatureValidationService _validationService;
     private readonly IUnitOfWorkFactory _uowFactory;
     private readonly IPermissionService _permissionService;
+    private readonly IPendingChangeRepository _pendingRepo;
 
     public FeatureService(
         IFeatureRepository featureRepository,
         ICatalogRepository catalogRepository,
         IFeatureValidationService validationService,
         IUnitOfWorkFactory uowFactory,
-        IPermissionService permissionService)
+        IPermissionService permissionService,
+        IPendingChangeRepository pendingRepo)
     {
         _featureRepository = featureRepository;
         _catalogRepository = catalogRepository;
         _validationService = validationService;
         _uowFactory = uowFactory;
         _permissionService = permissionService;
+        _pendingRepo = pendingRepo;
+    }
+
+    private static bool IsApproverOrAdmin(ClaimsPrincipal user)
+    {
+        var role = user.FindFirstValue(ClaimTypes.Role);
+        return string.Equals(role, "APPROVER", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(role, "ADMIN", StringComparison.OrdinalIgnoreCase);
     }
 
     private static UserContext ExtractUserContext(ClaimsPrincipal user)
@@ -51,6 +62,24 @@ public sealed class FeatureService : IFeatureService
         {
             throw new AuthenticationException($"Access denied to network '{networkId}'. The current user does not have assigned permissions.");
         }
+    }
+
+    private static string SerializeCoordinatesToLineGeoJson(IReadOnlyList<double[]> coordinates)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            type = "LineString",
+            coordinates
+        });
+    }
+
+    private static string SerializeCoordinatesToPolygonGeoJson(IReadOnlyList<IReadOnlyList<double[]>> ringCoordinates)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            type = "Polygon",
+            coordinates = ringCoordinates
+        });
     }
 
     // =========================================================================
@@ -97,6 +126,37 @@ public sealed class FeatureService : IFeatureService
         _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes, req.FeatureTypeCode);
 
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            var geomJson = $"{{\"type\":\"Point\",\"coordinates\":[{req.X.ToString(System.Globalization.CultureInfo.InvariantCulture)},{req.Y.ToString(System.Globalization.CultureInfo.InvariantCulture)}]}}";
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: req.NetworkId,
+                featureTypeCode: req.FeatureTypeCode,
+                geometryKind: "POINT",
+                featureId: null,
+                operation: "INSERT",
+                name: req.Name,
+                status: req.Status,
+                geometryGeoJson: geomJson,
+                attributesJson: req.Attributes.ToString(),
+                isOpen: req.IsOpen,
+                flowDirection: null,
+                diameterMm: null,
+                material: null,
+                targetVersion: null,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "INSERT",
+                req.FeatureTypeCode,
+                $"Layer '{req.FeatureTypeCode}' requires managerial approval. Your proposed asset has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Create point: {req.Name}", ct: ct);
 
         var id = await _featureRepository.CreatePointAsync(req, uow, ct);
@@ -121,16 +181,49 @@ public sealed class FeatureService : IFeatureService
             _validationService.ValidatePointGeometry(req.X.Value, req.Y.Value);
         }
 
-        if (req.Attributes.HasValue)
+        var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
+        if (req.Attributes.HasValue && ft != null)
         {
-            var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
-            if (ft != null)
-            {
-                _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes.Value, existing.FeatureTypeCode);
-            }
+            _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes.Value, existing.FeatureTypeCode);
         }
 
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft != null && ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            string? geomJson = null;
+            if (req.X.HasValue && req.Y.HasValue)
+            {
+                geomJson = $"{{\"type\":\"Point\",\"coordinates\":[{req.X.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)},{req.Y.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}]}}";
+            }
+
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: existing.NetworkId,
+                featureTypeCode: existing.FeatureTypeCode,
+                geometryKind: "POINT",
+                featureId: id,
+                operation: "UPDATE",
+                name: req.Name ?? existing.Name,
+                status: req.Status ?? existing.Status,
+                geometryGeoJson: geomJson,
+                attributesJson: req.Attributes.HasValue ? req.Attributes.Value.ToString() : "{}",
+                isOpen: req.IsOpen ?? existing.IsOpen,
+                flowDirection: null,
+                diameterMm: null,
+                material: null,
+                targetVersion: req.Version,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "UPDATE",
+                existing.FeatureTypeCode,
+                $"Layer '{existing.FeatureTypeCode}' requires managerial approval. Your modification has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Update point: {id}", ct: ct);
 
         var updated = await _featureRepository.UpdatePointAsync(id, req, uow, ct);
@@ -153,7 +246,38 @@ public sealed class FeatureService : IFeatureService
         EnsureNetworkAccess(user, existing.NetworkId);
         await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Delete, ct);
 
+        var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft != null && ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: existing.NetworkId,
+                featureTypeCode: existing.FeatureTypeCode,
+                geometryKind: "POINT",
+                featureId: id,
+                operation: "DELETE",
+                name: existing.Name,
+                status: existing.Status,
+                geometryGeoJson: null,
+                attributesJson: "{}",
+                isOpen: existing.IsOpen,
+                flowDirection: null,
+                diameterMm: null,
+                material: null,
+                targetVersion: version,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "DELETE",
+                existing.FeatureTypeCode,
+                $"Layer '{existing.FeatureTypeCode}' requires managerial approval. Your deletion request has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Delete point: {id}", ct: ct);
 
         var deleted = await _featureRepository.DeletePointAsync(id, version, uow, ct);
@@ -209,6 +333,37 @@ public sealed class FeatureService : IFeatureService
         _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes, req.FeatureTypeCode);
 
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            var geomJson = SerializeCoordinatesToLineGeoJson(req.Coordinates);
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: req.NetworkId,
+                featureTypeCode: req.FeatureTypeCode,
+                geometryKind: "LINE",
+                featureId: null,
+                operation: "INSERT",
+                name: req.Name,
+                status: req.Status,
+                geometryGeoJson: geomJson,
+                attributesJson: req.Attributes.ToString(),
+                isOpen: null,
+                flowDirection: req.FlowDirection,
+                diameterMm: req.DiameterMm,
+                material: req.Material,
+                targetVersion: null,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "INSERT",
+                req.FeatureTypeCode,
+                $"Layer '{req.FeatureTypeCode}' requires managerial approval. Your proposed line has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Create line: {req.Name}", ct: ct);
 
         var id = await _featureRepository.CreateLineAsync(req, uow, ct);
@@ -233,16 +388,44 @@ public sealed class FeatureService : IFeatureService
             _validationService.ValidateLineGeometry(req.Coordinates);
         }
 
-        if (req.Attributes.HasValue)
+        var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
+        if (req.Attributes.HasValue && ft != null)
         {
-            var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
-            if (ft != null)
-            {
-                _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes.Value, existing.FeatureTypeCode);
-            }
+            _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes.Value, existing.FeatureTypeCode);
         }
 
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft != null && ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            string? geomJson = req.Coordinates != null ? SerializeCoordinatesToLineGeoJson(req.Coordinates) : null;
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: existing.NetworkId,
+                featureTypeCode: existing.FeatureTypeCode,
+                geometryKind: "LINE",
+                featureId: id,
+                operation: "UPDATE",
+                name: req.Name ?? existing.Name,
+                status: req.Status ?? existing.Status,
+                geometryGeoJson: geomJson,
+                attributesJson: req.Attributes.HasValue ? req.Attributes.Value.ToString() : "{}",
+                isOpen: null,
+                flowDirection: req.FlowDirection ?? existing.FlowDirection,
+                diameterMm: req.DiameterMm ?? existing.DiameterMm,
+                material: req.Material ?? existing.Material,
+                targetVersion: req.Version,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "UPDATE",
+                existing.FeatureTypeCode,
+                $"Layer '{existing.FeatureTypeCode}' requires managerial approval. Your modification has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Update line: {id}", ct: ct);
 
         var updated = await _featureRepository.UpdateLineAsync(id, req, uow, ct);
@@ -265,7 +448,38 @@ public sealed class FeatureService : IFeatureService
         EnsureNetworkAccess(user, existing.NetworkId);
         await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Delete, ct);
 
+        var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft != null && ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: existing.NetworkId,
+                featureTypeCode: existing.FeatureTypeCode,
+                geometryKind: "LINE",
+                featureId: id,
+                operation: "DELETE",
+                name: existing.Name,
+                status: existing.Status,
+                geometryGeoJson: null,
+                attributesJson: "{}",
+                isOpen: null,
+                flowDirection: existing.FlowDirection,
+                diameterMm: existing.DiameterMm,
+                material: existing.Material,
+                targetVersion: version,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "DELETE",
+                existing.FeatureTypeCode,
+                $"Layer '{existing.FeatureTypeCode}' requires managerial approval. Your deletion request has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Delete line: {id}", ct: ct);
 
         var deleted = await _featureRepository.DeleteLineAsync(id, version, uow, ct);
@@ -321,6 +535,37 @@ public sealed class FeatureService : IFeatureService
         _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes, req.FeatureTypeCode);
 
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            var geomJson = SerializeCoordinatesToPolygonGeoJson(req.RingCoordinates);
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: req.NetworkId,
+                featureTypeCode: req.FeatureTypeCode,
+                geometryKind: "POLYGON",
+                featureId: null,
+                operation: "INSERT",
+                name: req.Name,
+                status: req.Status,
+                geometryGeoJson: geomJson,
+                attributesJson: req.Attributes.ToString(),
+                isOpen: null,
+                flowDirection: null,
+                diameterMm: null,
+                material: null,
+                targetVersion: null,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "INSERT",
+                req.FeatureTypeCode,
+                $"Layer '{req.FeatureTypeCode}' requires managerial approval. Your proposed polygon has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Create polygon: {req.Name}", ct: ct);
 
         var id = await _featureRepository.CreatePolygonAsync(req, uow, ct);
@@ -345,16 +590,44 @@ public sealed class FeatureService : IFeatureService
             _validationService.ValidatePolygonGeometry(req.RingCoordinates);
         }
 
-        if (req.Attributes.HasValue)
+        var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
+        if (req.Attributes.HasValue && ft != null)
         {
-            var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
-            if (ft != null)
-            {
-                _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes.Value, existing.FeatureTypeCode);
-            }
+            _validationService.ValidateAttributes(ft.AttributeSchema.GetRawText(), req.Attributes.Value, existing.FeatureTypeCode);
         }
 
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft != null && ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            string? geomJson = req.RingCoordinates != null ? SerializeCoordinatesToPolygonGeoJson(req.RingCoordinates) : null;
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: existing.NetworkId,
+                featureTypeCode: existing.FeatureTypeCode,
+                geometryKind: "POLYGON",
+                featureId: id,
+                operation: "UPDATE",
+                name: req.Name ?? existing.Name,
+                status: req.Status ?? existing.Status,
+                geometryGeoJson: geomJson,
+                attributesJson: req.Attributes.HasValue ? req.Attributes.Value.ToString() : "{}",
+                isOpen: null,
+                flowDirection: null,
+                diameterMm: null,
+                material: null,
+                targetVersion: req.Version,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "UPDATE",
+                existing.FeatureTypeCode,
+                $"Layer '{existing.FeatureTypeCode}' requires managerial approval. Your modification has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Update polygon: {id}", ct: ct);
 
         var updated = await _featureRepository.UpdatePolygonAsync(id, req, uow, ct);
@@ -377,7 +650,38 @@ public sealed class FeatureService : IFeatureService
         EnsureNetworkAccess(user, existing.NetworkId);
         await _permissionService.EnsureLayerPermissionAsync(user, existing.NetworkId, existing.FeatureTypeCode, LayerAction.Delete, ct);
 
+        var ft = await _catalogRepository.GetFeatureTypeByCodeAsync(existing.FeatureTypeCode, ct);
         var userContext = ExtractUserContext(user);
+
+        // Approval workflow check
+        if (ft != null && ft.RequiresApproval && !IsApproverOrAdmin(user))
+        {
+            var pendingId = await _pendingRepo.CreatePendingChangeAsync(
+                networkId: existing.NetworkId,
+                featureTypeCode: existing.FeatureTypeCode,
+                geometryKind: "POLYGON",
+                featureId: id,
+                operation: "DELETE",
+                name: existing.Name,
+                status: existing.Status,
+                geometryGeoJson: null,
+                attributesJson: "{}",
+                isOpen: null,
+                flowDirection: null,
+                diameterMm: null,
+                material: null,
+                targetVersion: version,
+                proposerUserId: userContext.UserId ?? Guid.Empty,
+                ct: ct
+            );
+
+            throw new PendingApprovalRequiredException(
+                pendingId,
+                "DELETE",
+                existing.FeatureTypeCode,
+                $"Layer '{existing.FeatureTypeCode}' requires managerial approval. Your deletion request has been submitted to the approval queue.");
+        }
+
         await using var uow = await _uowFactory.BeginWriteAsync(userContext, description: $"Delete polygon: {id}", ct: ct);
 
         var deleted = await _featureRepository.DeletePolygonAsync(id, version, uow, ct);

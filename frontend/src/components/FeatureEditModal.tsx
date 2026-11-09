@@ -207,6 +207,17 @@ export const FeatureEditModal: React.FC<FeatureEditModalProps> = ({
 
     setIsSubmitting(true);
 
+    const notifyResult = (res: any, defaultTitle: string, defaultMsg: string) => {
+      if (res?.isPendingApproval) {
+        showSuccess(
+          isAr ? 'تم إرسال الطلب للاعتماد' : 'Submitted for Approval',
+          res.message || (isAr ? 'هذه الطبقة تتطلب اعتماد المدير. تم إرسال طلبك إلى طابور المراجعة بنجاح.' : 'Layer requires approval. Request queued.')
+        );
+      } else {
+        showSuccess(defaultTitle, defaultMsg);
+      }
+    };
+
     try {
       if (isCreate) {
         // CREATE FLOW
@@ -222,7 +233,8 @@ export const FeatureEditModal: React.FC<FeatureEditModalProps> = ({
             y: coords[1],
             isOpen: isOpen,
           });
-          showSuccess(
+          notifyResult(
+            res,
             isAr ? 'تم إنشاء النقطة بنجاح' : 'Point feature created',
             isAr ? `تمت إضافة ${name} إلى قاعدة البيانات.` : `Added ${name} to database.`
           );
@@ -240,7 +252,8 @@ export const FeatureEditModal: React.FC<FeatureEditModalProps> = ({
             diameterMm: diameterMm === '' ? undefined : Number(diameterMm),
             material: material.trim() || undefined,
           });
-          showSuccess(
+          notifyResult(
+            res,
             isAr ? 'تم إنشاء الخط بنجاح' : 'Line feature created',
             isAr ? `تمت إضافة ${name} إلى قاعدة البيانات.` : `Added ${name} to database.`
           );
@@ -256,7 +269,8 @@ export const FeatureEditModal: React.FC<FeatureEditModalProps> = ({
             attributes,
             ringCoordinates: ringCoords,
           });
-          showSuccess(
+          notifyResult(
+            res,
             isAr ? 'تم إنشاء المضلع بنجاح' : 'Polygon feature created',
             isAr ? `تمت إضافة ${name} إلى قاعدة البيانات.` : `Added ${name} to database.`
           );
@@ -275,7 +289,8 @@ export const FeatureEditModal: React.FC<FeatureEditModalProps> = ({
             isOpen,
             version: currentVersion,
           });
-          showSuccess(
+          notifyResult(
+            res,
             isAr ? 'تم تحديث النقطة بنجاح' : 'Point feature updated',
             isAr ? `تم حفظ التعديلات على "${name}".` : `Updated ${name}.`
           );
@@ -290,7 +305,8 @@ export const FeatureEditModal: React.FC<FeatureEditModalProps> = ({
             material: material.trim() || undefined,
             version: currentVersion,
           });
-          showSuccess(
+          notifyResult(
+            res,
             isAr ? 'تم تحديث الخط بنجاح' : 'Line feature updated',
             isAr ? `تم حفظ التعديلات على "${name}".` : `Updated ${name}.`
           );
@@ -303,7 +319,8 @@ export const FeatureEditModal: React.FC<FeatureEditModalProps> = ({
             attributes,
             version: currentVersion,
           });
-          showSuccess(
+          notifyResult(
+            res,
             isAr ? 'تم تحديث المضلع بنجاح' : 'Polygon feature updated',
             isAr ? `تم حفظ التعديلات على "${name}".` : `Updated ${name}.`
           );

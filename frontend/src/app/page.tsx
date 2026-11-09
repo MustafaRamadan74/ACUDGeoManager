@@ -23,6 +23,7 @@ import { ValidationDashboardModal } from '@/components/ValidationDashboardModal'
 import { HistoryPanelModal } from '@/components/HistoryPanelModal';
 import { ImportExportModal } from '@/components/ImportExportModal';
 import { AnalysisModal } from '@/components/AnalysisModal';
+import { ApprovalsModal } from '@/components/ApprovalsModal';
 import { useToast } from '@/components/Toast';
 import { Loader2 } from 'lucide-react';
 
@@ -44,9 +45,10 @@ const MapComponent = dynamic(
 
 export default function GisPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading, canEdit, lang } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, canEdit, lang, user } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
   const isAr = lang === 'ar';
+  const isApproverOrAdmin = user?.role === 'APPROVER' || user?.role === 'ADMIN';
 
   const [networks, setNetworks] = useState<NetworkDto[]>([]);
   const [featureTypes, setFeatureTypes] = useState<FeatureTypeDto[]>([]);
@@ -67,6 +69,9 @@ export default function GisPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const [isApprovalsOpen, setIsApprovalsOpen] = useState(false);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [approvalPreviewGeometry, setApprovalPreviewGeometry] = useState<any | null>(null);
   const [analysisGeometry, setAnalysisGeometry] = useState<any | null>(null);
   const [measuringMode, setMeasuringMode] = useState<'LINE' | 'POLYGON' | null>(null);
   const [drawnMeasureGeometry, setDrawnMeasureGeometry] = useState<any | null>(null);
@@ -326,6 +331,24 @@ export default function GisPage() {
     }
   }, [isAuthenticated, refreshHistoryStack]);
 
+  const refreshPendingApprovalsCount = useCallback(async () => {
+    if (!isApproverOrAdmin) return;
+    try {
+      const pending = await api.getPendingApprovals();
+      setPendingApprovalsCount(pending.length);
+    } catch {
+      // ignore
+    }
+  }, [isApproverOrAdmin]);
+
+  useEffect(() => {
+    if (isAuthenticated && isApproverOrAdmin) {
+      refreshPendingApprovalsCount();
+      const interval = setInterval(refreshPendingApprovalsCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, isApproverOrAdmin, refreshPendingApprovalsCount]);
+
   const handleUndo = useCallback(async () => {
     try {
       const res = await api.undoLatest();
@@ -409,6 +432,7 @@ export default function GisPage() {
       fetchFeatures(currentBboxRef.current);
     }
     refreshHistoryStack();
+    refreshPendingApprovalsCount();
   };
 
   // Callback after feature is deleted
@@ -421,6 +445,7 @@ export default function GisPage() {
     }
     setSpatialResults((prev) => prev.filter((f) => f.id !== deletedId));
     refreshHistoryStack();
+    refreshPendingApprovalsCount();
   };
 
   if (authLoading || !isAuthenticated) {
@@ -449,6 +474,8 @@ export default function GisPage() {
         onOpenValidation={() => setIsValidationOpen(true)}
         onOpenImportExport={() => setIsImportExportOpen(true)}
         onOpenAnalysis={() => setIsAnalysisOpen(true)}
+        onOpenApprovals={() => setIsApprovalsOpen(true)}
+        pendingApprovalsCount={pendingApprovalsCount}
         canUndo={historyStack?.canUndo ?? false}
         canRedo={historyStack?.canRedo ?? false}
         onUndo={handleUndo}
@@ -501,6 +528,7 @@ export default function GisPage() {
             canEdit={canEdit}
             isSelectingPolygon={isSelectingPolygon}
             analysisGeometry={analysisGeometry}
+            approvalPreviewGeometry={approvalPreviewGeometry}
             isMeasuring={measuringMode}
             onMeasureDrawingComplete={(geom) => {
               setDrawnMeasureGeometry(geom);
@@ -690,6 +718,26 @@ export default function GisPage() {
         drawnMeasureGeometry={drawnMeasureGeometry}
         onClearMeasureDrawing={() => setDrawnMeasureGeometry(null)}
         isAr={isAr}
+      />
+
+      {/* Approvals Workflow Modal */}
+      <ApprovalsModal
+        isOpen={isApprovalsOpen}
+        onClose={() => {
+          setIsApprovalsOpen(false);
+          setApprovalPreviewGeometry(null);
+        }}
+        networks={networks}
+        activeNetworkId={activeNetworkId}
+        featureTypes={featureTypes}
+        onFeatureTypesUpdated={setFeatureTypes}
+        onRefreshData={() => {
+          refreshPendingApprovalsCount();
+          if (currentBboxRef.current) {
+            fetchFeatures(currentBboxRef.current);
+          }
+        }}
+        onPreviewGeometry={setApprovalPreviewGeometry}
       />
     </div>
   );

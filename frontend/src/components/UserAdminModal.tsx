@@ -57,7 +57,7 @@ export const UserAdminModal: React.FC<UserAdminModalProps> = ({ networks, featur
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newDepartment, setNewDepartment] = useState('');
-  const [newRole, setNewRole] = useState<'ADMIN' | 'EDITOR' | 'VIEWER'>('EDITOR');
+  const [newRole, setNewRole] = useState<'ADMIN' | 'APPROVER' | 'EDITOR' | 'VIEWER'>('EDITOR');
   const [selectedNetworkIds, setSelectedNetworkIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -132,7 +132,7 @@ export const UserAdminModal: React.FC<UserAdminModalProps> = ({ networks, featur
     }
   };
 
-  const handleChangeRole = async (targetUser: UserResponse, newRole: 'ADMIN' | 'EDITOR' | 'VIEWER') => {
+  const handleChangeRole = async (targetUser: UserResponse, newRole: 'ADMIN' | 'APPROVER' | 'EDITOR' | 'VIEWER') => {
     try {
       await api.updateUser(targetUser.id, {
         role: newRole,
@@ -403,6 +403,7 @@ export const UserAdminModal: React.FC<UserAdminModalProps> = ({ networks, featur
                                 className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-sky-500 font-semibold disabled:opacity-50"
                               >
                                 <option value="ADMIN">ADMIN</option>
+                                <option value="APPROVER">APPROVER</option>
                                 <option value="EDITOR">EDITOR</option>
                                 <option value="VIEWER">VIEWER</option>
                               </select>
@@ -551,6 +552,7 @@ export const UserAdminModal: React.FC<UserAdminModalProps> = ({ networks, featur
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 font-semibold cursor-pointer"
                   >
                     <option value="EDITOR">EDITOR (محرر بيانات جغرافية)</option>
+                    <option value="APPROVER">APPROVER (مدير اعتماد / رئيس فريق)</option>
                     <option value="VIEWER">VIEWER (مشاهد فقط)</option>
                     <option value="ADMIN">ADMIN (مدير نظام)</option>
                   </select>

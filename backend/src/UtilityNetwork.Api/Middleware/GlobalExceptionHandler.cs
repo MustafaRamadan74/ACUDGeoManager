@@ -34,10 +34,29 @@ public sealed partial class GlobalExceptionHandler : IExceptionHandler
         Exception exception,
         CancellationToken cancellationToken)
     {
+        if (exception is PendingApprovalRequiredException pendingEx)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status202Accepted;
+            await httpContext.Response.WriteAsJsonAsync(new UtilityNetwork.Core.Models.PendingChangeSubmittedDto(
+                pendingEx.PendingChangeId,
+                true,
+                pendingEx.Operation,
+                pendingEx.FeatureTypeCode,
+                pendingEx.Message
+            ), cancellationToken);
+            return true;
+        }
+
         var traceId = Activity.Current?.Id ?? httpContext.TraceIdentifier;
 
         var (statusCode, title, detail, errors) = exception switch
         {
+            UtilityNetwork.Data.Services.ConcurrencyConflictException concConflictEx => (
+                StatusCodes.Status409Conflict,
+                "Concurrency Conflict",
+                concConflictEx.Message,
+                null
+            ),
             ValidationException valEx => (
                 StatusCodes.Status400BadRequest,
                 "Validation Error",

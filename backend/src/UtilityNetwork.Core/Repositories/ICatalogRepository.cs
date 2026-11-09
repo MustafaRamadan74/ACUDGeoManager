@@ -9,4 +9,5 @@ public interface ICatalogRepository
     Task<IReadOnlyList<FeatureTypeDto>> GetFeatureTypesAsync(CancellationToken ct = default);
     Task<FeatureTypeDto?> GetFeatureTypeByCodeAsync(string code, CancellationToken ct = default);
     Task<RichWorkspaceSummaryDto?> GetNetworkSummaryAsync(Guid networkId, CancellationToken ct = default);
+    Task<bool> UpdateFeatureTypeRequiresApprovalAsync(string code, bool requiresApproval, CancellationToken ct = default);
 }

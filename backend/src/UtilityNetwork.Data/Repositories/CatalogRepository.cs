@@ -50,7 +50,7 @@ public sealed class CatalogRepository : ICatalogRepository
             SELECT code AS Code, network_domain AS NetworkDomain, geometry_kind::text AS GeometryKind, 
                    display_name AS DisplayName, topology_role::text AS TopologyRole, 
                    attribute_schema::text AS AttributeSchemaJson, style::text AS StyleJson, 
-                   is_active AS IsActive
+                   is_active AS IsActive, COALESCE(requires_approval, false) AS RequiresApproval
             FROM feature_types ORDER BY code ASC;";
 
         await using var conn = new NpgsqlConnection(_connectionString);
@@ -65,13 +65,26 @@ public sealed class CatalogRepository : ICatalogRepository
             SELECT code AS Code, network_domain AS NetworkDomain, geometry_kind::text AS GeometryKind, 
                    display_name AS DisplayName, topology_role::text AS TopologyRole, 
                    attribute_schema::text AS AttributeSchemaJson, style::text AS StyleJson, 
-                   is_active AS IsActive
+                   is_active AS IsActive, COALESCE(requires_approval, false) AS RequiresApproval
             FROM feature_types WHERE upper(code) = upper(@code);";
 
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
         var row = await conn.QuerySingleOrDefaultAsync<FeatureTypeDbDto>(new CommandDefinition(sql, new { code }, cancellationToken: ct));
         return row?.ToDto();
+    }
+
+    public async Task<bool> UpdateFeatureTypeRequiresApprovalAsync(string code, bool requiresApproval, CancellationToken ct = default)
+    {
+        const string sql = @"
+            UPDATE feature_types
+            SET requires_approval = @requiresApproval
+            WHERE upper(code) = upper(@code);";
+
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { code, requiresApproval }, cancellationToken: ct));
+        return rows > 0;
     }
 
     public async Task<RichWorkspaceSummaryDto?> GetNetworkSummaryAsync(Guid networkId, CancellationToken ct = default)
@@ -144,7 +157,8 @@ public sealed class CatalogRepository : ICatalogRepository
         string TopologyRole,
         string AttributeSchemaJson,
         string StyleJson,
-        bool IsActive)
+        bool IsActive,
+        bool RequiresApproval = false)
     {
         public FeatureTypeDto ToDto() => new(
             Code,
@@ -154,6 +168,7 @@ public sealed class CatalogRepository : ICatalogRepository
             TopologyRole,
             JsonDocument.Parse(string.IsNullOrWhiteSpace(AttributeSchemaJson) ? "{}" : AttributeSchemaJson).RootElement.Clone(),
             JsonDocument.Parse(string.IsNullOrWhiteSpace(StyleJson) ? "{}" : StyleJson).RootElement.Clone(),
-            IsActive);
+            IsActive,
+            RequiresApproval);
     }
 }

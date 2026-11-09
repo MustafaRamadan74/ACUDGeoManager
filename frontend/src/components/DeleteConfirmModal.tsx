@@ -35,12 +35,22 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
+      let res: any = null;
       if (geometryKind === 'POINT') {
-        await api.deletePoint(id, version);
+        res = await api.deletePoint(id, version);
       } else if (geometryKind === 'LINE') {
-        await api.deleteLine(id, version);
+        res = await api.deleteLine(id, version);
       } else {
-        await api.deletePolygon(id, version);
+        res = await api.deletePolygon(id, version);
+      }
+
+      if (res?.isPendingApproval) {
+        showSuccess(
+          isAr ? 'تم إرسال طلب الحذف للاعتماد' : 'Deletion Submitted for Approval',
+          res.message || (isAr ? 'هذه الطبقة تتطلب اعتماد المدير. تم إرسال طلب الحذف للمراجعة.' : 'Layer requires approval. Deletion queued.')
+        );
+        onClose();
+        return;
       }
 
       showSuccess(

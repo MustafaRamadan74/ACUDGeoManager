@@ -48,6 +48,11 @@ import {
   FeatureHistoryReportRequest,
   UserActivityReportRequest,
   AnalysisWidgetExportRequest,
+  PendingChangeDto,
+  RejectPendingChangeRequest,
+  ApprovalResultDto,
+  PendingChangeSubmittedDto,
+  UpdateLayerApprovalFlagRequest,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -577,6 +582,36 @@ export const api = {
 
   downloadAnalysisWidgetReport: async (data: AnalysisWidgetExportRequest): Promise<void> => {
     await downloadReportFile('/reports/analysis-widget', data, 'Analysis_Report');
+  },
+
+  // Approvals & Workflow
+  getPendingApprovals: async (networkId?: string): Promise<PendingChangeDto[]> => {
+    const query = networkId ? `?networkId=${encodeURIComponent(networkId)}` : '';
+    return await request<PendingChangeDto[]>(`/approvals/pending${query}`);
+  },
+
+  getPendingApprovalById: async (id: string): Promise<PendingChangeDto> => {
+    return await request<PendingChangeDto>(`/approvals/${id}`);
+  },
+
+  approvePendingChange: async (id: string): Promise<ApprovalResultDto> => {
+    return await request<ApprovalResultDto>(`/approvals/${id}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  rejectPendingChange: async (id: string, reason: string): Promise<ApprovalResultDto> => {
+    return await request<ApprovalResultDto>(`/approvals/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  updateLayerApprovalRequirement: async (layerCode: string, requiresApproval: boolean): Promise<{ featureTypeCode: string; requiresApproval: boolean }> => {
+    return await request<{ featureTypeCode: string; requiresApproval: boolean }>(`/approvals/layers/${layerCode}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ requiresApproval }),
+    });
   },
 };
 

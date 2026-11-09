@@ -19,7 +19,8 @@ public sealed record FeatureTypeDto(
     string TopologyRole,
     JsonElement AttributeSchema,
     JsonElement Style,
-    bool IsActive);
+    bool IsActive,
+    bool RequiresApproval = false);
 
 public sealed record TypeStatusCountDto(
     string FeatureTypeCode,

@@ -30,6 +30,7 @@ interface MapComponentProps {
   }) => void;
   onPolygonSelected?: (polygonGeoJson: any) => void;
   analysisGeometry?: any | null;
+  approvalPreviewGeometry?: any | null;
   isMeasuring?: 'LINE' | 'POLYGON' | null;
   onMeasureDrawingComplete?: (geometry: any) => void;
   drawnMeasureGeometry?: any | null;
@@ -47,6 +48,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   canEdit,
   isSelectingPolygon = false,
   analysisGeometry,
+  approvalPreviewGeometry,
   isMeasuring = null,
   onMeasureDrawingComplete,
   drawnMeasureGeometry,
@@ -64,6 +66,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const geojsonLayerRef = useRef<L.GeoJSON | null>(null);
   const validationLayerRef = useRef<L.GeoJSON | null>(null);
   const analysisLayerRef = useRef<L.GeoJSON | null>(null);
+  const approvalPreviewLayerRef = useRef<L.GeoJSON | null>(null);
   const measureLayerRef = useRef<L.GeoJSON | null>(null);
   const basemapLayerRef = useRef<L.TileLayer | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -432,6 +435,66 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       console.error('Failed to render analysis geometry:', err);
     }
   }, [analysisGeometry]);
+
+  // React to Approval Preview Geometry display
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (approvalPreviewLayerRef.current) {
+      map.removeLayer(approvalPreviewLayerRef.current);
+      approvalPreviewLayerRef.current = null;
+    }
+
+    if (!approvalPreviewGeometry) return;
+
+    try {
+      const isFeatureOrCollection = approvalPreviewGeometry.type === 'Feature' || approvalPreviewGeometry.type === 'FeatureCollection';
+      const geojsonObj = isFeatureOrCollection
+        ? approvalPreviewGeometry
+        : {
+            type: 'Feature',
+            geometry: approvalPreviewGeometry,
+            properties: { label: isAr ? 'معاينة التعديل المقترح' : 'Proposed Change Preview' },
+          };
+
+      const layer = L.geoJSON(geojsonObj, {
+        style: {
+          color: '#F97316',
+          weight: 4,
+          dashArray: '6, 6',
+          fillColor: '#FB923C',
+          fillOpacity: 0.35,
+        },
+        pointToLayer: (_feat, latlng) => {
+          return L.circleMarker(latlng, {
+            radius: 10,
+            fillColor: '#F97316',
+            color: '#FFFFFF',
+            weight: 3,
+            fillOpacity: 0.9,
+          });
+        },
+        onEachFeature: (_f, l) => {
+          l.bindTooltip(isAr ? '⚠️ معاينة مقترح التعديل (قيد الاعتماد)' : '⚠️ Proposed Change (Pending Approval)', {
+            permanent: true,
+            direction: 'top',
+            className: 'bg-amber-600 text-white font-bold px-2 py-1 rounded shadow text-xs',
+          });
+        },
+      });
+
+      layer.addTo(map);
+      approvalPreviewLayerRef.current = layer;
+
+      const bounds = layer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { maxZoom: 18, padding: [70, 70], animate: true });
+      }
+    } catch (err) {
+      console.error('Failed to render approval preview geometry:', err);
+    }
+  }, [approvalPreviewGeometry, isAr]);
 
   // React to Drawn Measure Geometry display
   useEffect(() => {

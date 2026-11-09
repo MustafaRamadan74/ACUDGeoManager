@@ -97,8 +97,9 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
 
-    options.AddPolicy("Viewer", p => p.RequireRole("VIEWER", "EDITOR", "ADMIN"));
-    options.AddPolicy("Editor", p => p.RequireRole("EDITOR", "ADMIN"));
+    options.AddPolicy("Viewer", p => p.RequireRole("VIEWER", "EDITOR", "APPROVER", "ADMIN"));
+    options.AddPolicy("Editor", p => p.RequireRole("EDITOR", "APPROVER", "ADMIN"));
+    options.AddPolicy("Approver", p => p.RequireRole("APPROVER", "ADMIN"));
     options.AddPolicy("Admin", p => p.RequireRole("ADMIN"));
 });
 

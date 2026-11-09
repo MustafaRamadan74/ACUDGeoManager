@@ -2,7 +2,7 @@ export interface UserDto {
   id: string;
   username: string;
   email: string;
-  role: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  role: 'ADMIN' | 'APPROVER' | 'EDITOR' | 'VIEWER';
   isActive: boolean;
   department?: string | null;
   createdAt: string;
@@ -43,6 +43,7 @@ export interface FeatureTypeDto {
   attributeSchema: Record<string, any>;
   style: FeatureTypeStyle;
   isActive: boolean;
+  requiresApproval?: boolean;
 }
 
 export interface GeoJsonGeometry {
@@ -208,7 +209,7 @@ export interface UserResponse {
   id: string;
   username: string;
   email: string;
-  role: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  role: 'ADMIN' | 'APPROVER' | 'EDITOR' | 'VIEWER';
   isActive: boolean;
   department?: string | null;
   lastLoginAt?: string | null;
@@ -220,14 +221,14 @@ export interface CreateUserRequest {
   username: string;
   email: string;
   password: string;
-  role: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  role: 'ADMIN' | 'APPROVER' | 'EDITOR' | 'VIEWER';
   department?: string | null;
   networkIds?: string[];
 }
 
 export interface UpdateUserRequest {
   email?: string;
-  role?: 'ADMIN' | 'EDITOR' | 'VIEWER';
+  role?: 'ADMIN' | 'APPROVER' | 'EDITOR' | 'VIEWER';
   isActive?: boolean;
   department?: string | null;
   networkIds?: string[];
@@ -594,4 +595,56 @@ export interface AnalysisWidgetExportRequest {
   rows: string[][];
   mapSnapshotBase64?: string | null;
   format?: ReportFormat;
+}
+
+// --- Approval Workflow Models ---
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface PendingChangeDto {
+  id: string;
+  networkId: string;
+  featureTypeCode: string;
+  geometryKind: 'POINT' | 'LINE' | 'POLYGON';
+  featureId?: string | null;
+  operation: 'INSERT' | 'UPDATE' | 'DELETE';
+  name: string;
+  status: string;
+  geometryGeoJson?: string | null;
+  attributesJson: string;
+  isOpen?: boolean | null;
+  flowDirection?: string | null;
+  diameterMm?: number | null;
+  material?: string | null;
+  targetVersion?: number | null;
+  proposerUserId: string;
+  proposerUsername: string;
+  proposedAt: string;
+  reviewStatus: ReviewStatus;
+  reviewerUserId?: string | null;
+  reviewerUsername?: string | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
+}
+
+export interface RejectPendingChangeRequest {
+  reason: string;
+}
+
+export interface PendingChangeSubmittedDto {
+  pendingChangeId: string;
+  isPendingApproval: boolean;
+  operation: string;
+  featureTypeCode: string;
+  message: string;
+}
+
+export interface ApprovalResultDto {
+  pendingChangeId: string;
+  reviewStatus: string;
+  appliedFeatureId?: string | null;
+  message: string;
+}
+
+export interface UpdateLayerApprovalFlagRequest {
+  requiresApproval: boolean;
 }

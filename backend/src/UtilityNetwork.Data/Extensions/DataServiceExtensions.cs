@@ -66,6 +66,10 @@ public static class DataServiceExtensions
         services.AddScoped<IAnalysisService, AnalysisService>();
         services.AddScoped<IReportService, ReportService>();
 
+        // Approvals & Workflow
+        services.AddScoped<IPendingChangeRepository, PendingChangeRepository>();
+        services.AddScoped<IApprovalService, ApprovalService>();
+
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);
 
