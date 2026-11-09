@@ -378,3 +378,53 @@ export interface ConflictingFeatureDto {
   reason: string;
 }
 
+export interface ExportFilterRequest {
+  networkId?: string;
+  featureTypeCode?: string;
+  bbox?: string;
+  srid?: number;
+}
+
+export interface ImportRowErrorDto {
+  rowIndex: number;
+  field: string;
+  error: string;
+}
+
+export interface ImportPreviewRowDto {
+  rowIndex: number;
+  name: string;
+  featureTypeCode: string;
+  geometryKind: string;
+  geometrySummary: string;
+  status: string;
+  isValid: boolean;
+  isDuplicate: boolean;
+  duplicateReason?: string | null;
+  attributes?: string | null;
+}
+
+export interface ImportPreviewResultDto {
+  previewToken: string;
+  totalFeatures: number;
+  validCount: number;
+  invalidCount: number;
+  duplicateCount: number;
+  errors: ImportRowErrorDto[];
+  sampleRows: ImportPreviewRowDto[];
+}
+
+export interface ImportCommitRequest {
+  previewToken: string;
+  networkId: string;
+  skipDuplicates?: boolean;
+}
+
+export interface ImportCommitResultDto {
+  changeSetId: string;
+  importedCount: number;
+  skippedCount: number;
+  featureIds: string[];
+}
+
+

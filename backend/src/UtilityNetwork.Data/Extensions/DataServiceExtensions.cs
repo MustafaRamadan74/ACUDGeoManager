@@ -53,6 +53,11 @@ public static class DataServiceExtensions
         services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.ReversedFlowRule>();
         services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.IsolatedNoSourceRule>();
 
+        // Import & Export Services
+        services.AddSingleton<IImportPreviewStore, MemoryImportPreviewStore>();
+        services.AddScoped<IExportService, ExportService>();
+        services.AddScoped<IImportService, ImportService>();
+
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);
 

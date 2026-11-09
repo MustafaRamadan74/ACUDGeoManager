@@ -30,6 +30,10 @@ import {
   UndoRedoStackDto,
   UndoResultDto,
   RedoResultDto,
+  ExportFilterRequest,
+  ImportPreviewResultDto,
+  ImportCommitRequest,
+  ImportCommitResultDto,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -442,6 +446,57 @@ export const api = {
   redoLatest: async (): Promise<RedoResultDto> => {
     return await request<RedoResultDto>('/history/redo', {
       method: 'POST',
+    });
+  },
+
+  // Import & Export
+  downloadExport: async (format: 'geojson' | 'csv', filter: ExportFilterRequest): Promise<void> => {
+    const params = new URLSearchParams();
+    if (filter.networkId) params.set('networkId', filter.networkId);
+    if (filter.featureTypeCode) params.set('featureTypeCode', filter.featureTypeCode);
+    if (filter.bbox) params.set('bbox', filter.bbox);
+    if (filter.srid) params.set('srid', filter.srid.toString());
+
+    const token = getAccessToken();
+    const res = await fetch(`${BASE_URL}/export/${format}?${params.toString()}`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Export failed: ${res.statusText}`);
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition');
+    let filename = `export_${filter.srid || 4326}.${format === 'geojson' ? 'geojson' : 'csv'}`;
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match && match[1]) filename = match[1];
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
+
+  previewImport: async (formData: FormData): Promise<ImportPreviewResultDto> => {
+    return await request<ImportPreviewResultDto>('/import/preview', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  commitImport: async (data: ImportCommitRequest): Promise<ImportCommitResultDto> => {
+    return await request<ImportCommitResultDto>('/import/commit', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 };

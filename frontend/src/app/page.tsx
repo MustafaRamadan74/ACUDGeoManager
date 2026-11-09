@@ -21,6 +21,7 @@ import { NearestQueryModal } from '@/components/NearestQueryModal';
 import { SpatialResultsDrawer } from '@/components/SpatialResultsDrawer';
 import { ValidationDashboardModal } from '@/components/ValidationDashboardModal';
 import { HistoryPanelModal } from '@/components/HistoryPanelModal';
+import { ImportExportModal } from '@/components/ImportExportModal';
 import { useToast } from '@/components/Toast';
 import { Loader2 } from 'lucide-react';
 
@@ -63,6 +64,7 @@ export default function GisPage() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isValidationOpen, setIsValidationOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [historyStack, setHistoryStack] = useState<UndoRedoStackDto | null>(null);
   const [validationIssues, setValidationIssues] = useState<ValidationIssueDto[]>([]);
 
@@ -440,6 +442,7 @@ export default function GisPage() {
         onOpenSelectByAttribute={() => setIsAttributeModalOpen(true)}
         onOpenNearestModal={() => setIsNearestModalOpen(true)}
         onOpenValidation={() => setIsValidationOpen(true)}
+        onOpenImportExport={() => setIsImportExportOpen(true)}
         canUndo={historyStack?.canUndo ?? false}
         canRedo={historyStack?.canRedo ?? false}
         onUndo={handleUndo}
@@ -628,6 +631,27 @@ export default function GisPage() {
         isOpen={isHistoryOpen}
         onClose={() => setIsHistoryOpen(false)}
         onStackChanged={() => {
+          refreshHistoryStack();
+          if (currentBboxRef.current) {
+            fetchFeatures(currentBboxRef.current);
+          }
+        }}
+      />
+
+      {/* Import & Export Modal */}
+      <ImportExportModal
+        isOpen={isImportExportOpen}
+        onClose={() => setIsImportExportOpen(false)}
+        networks={networks}
+        activeNetworkId={activeNetworkId}
+        featureTypes={featureTypes}
+        currentBbox={
+          currentBboxRef.current
+            ? `${currentBboxRef.current[0]},${currentBboxRef.current[1]},${currentBboxRef.current[2]},${currentBboxRef.current[3]}`
+            : undefined
+        }
+        isAr={isAr}
+        onImportSuccess={() => {
           refreshHistoryStack();
           if (currentBboxRef.current) {
             fetchFeatures(currentBboxRef.current);

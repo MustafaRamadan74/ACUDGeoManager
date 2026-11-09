@@ -21,6 +21,7 @@ import {
   Undo2,
   Redo2,
   History,
+  ArrowUpDown,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -36,6 +37,7 @@ interface NavbarProps {
   onOpenSelectByAttribute: () => void;
   onOpenNearestModal: () => void;
   onOpenValidation?: () => void;
+  onOpenImportExport?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
@@ -60,6 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSelectByAttribute,
   onOpenNearestModal,
   onOpenValidation,
+  onOpenImportExport,
   canUndo = false,
   canRedo = false,
   onUndo,
@@ -316,6 +319,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
             <span className="hidden lg:inline">{isAr ? 'التدقيق' : 'Validation'}</span>
+          </button>
+        )}
+
+        {/* Import & Export */}
+        {onOpenImportExport && (
+          <button
+            onClick={onOpenImportExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-xs font-semibold border border-emerald-800/60 transition shadow-sm"
+            title={isAr ? 'استيراد وتصدير البيانات المكانية (EPSG: 4326/22992/32636)' : 'Spatial Data Import & Export (EPSG: 4326/22992/32636)'}
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden lg:inline">{isAr ? 'استيراد/تصدير' : 'Import/Export'}</span>
           </button>
         )}
 
