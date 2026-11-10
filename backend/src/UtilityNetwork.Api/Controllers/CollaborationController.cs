@@ -41,3 +41,4 @@ public sealed class CollaborationController : ControllerBase
         return Ok(users);
     }
 }
+

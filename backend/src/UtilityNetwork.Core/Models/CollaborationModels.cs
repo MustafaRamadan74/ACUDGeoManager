@@ -37,3 +37,4 @@ public sealed record ValidationCompletedEvent(
     long TotalIssuesCount,
     DateTimeOffset CompletedAt
 );
+

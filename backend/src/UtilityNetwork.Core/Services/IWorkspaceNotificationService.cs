@@ -8,3 +8,4 @@ public interface IWorkspaceNotificationService
     Task NotifyFeatureEditingAsync(FeatureEditingEvent ev, CancellationToken ct = default);
     Task NotifyValidationCompletedAsync(ValidationCompletedEvent ev, CancellationToken ct = default);
 }
+

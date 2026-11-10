@@ -18,6 +18,46 @@ services:
       retries: 5
       start_period: 10s
 
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: acud_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB:-acud_geom_db};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres_password}"
+      Database__RunMigrations: "true"
+      Jwt__Issuer: "${Jwt__Issuer:-ACUDGeoManager}"
+      Jwt__Audience: "${Jwt__Audience:-ACUDGeoManagerClient}"
+      Jwt__Secret: "${Jwt__Secret:-SuperSecretKeyAtLeast32BytesLongForSecurityTestingOnly1234567890!}"
+      Admin__Username: "${Admin__Username:-admin}"
+      Admin__Email: "${Admin__Email:-admin@acud.gov.eg}"
+      Admin__Password: "${Admin__Password:-Admin@Passw0rd123!}"
+      Cors__AllowedOrigins: "http://localhost:3000,http://127.0.0.1:3000"
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ASPNETCORE_HTTP_PORTS: "5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - acud_uploads:/app/uploads
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: acud_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:5000/api/v1"
+      NODE_ENV: "production"
+    ports:
+      - "3000:3000"
+
 volumes:
   acud_pgdata:
-
+  acud_uploads:
