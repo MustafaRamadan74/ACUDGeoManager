@@ -37,6 +37,7 @@ interface FeatureDetailsProps {
   onEdit?: (feature: GeoJsonFeature) => void;
   onDelete?: (feature: GeoJsonFeature) => void;
   onShowHistory?: (feature: GeoJsonFeature) => void;
+  activeEditor?: { username: string };
 }
 
 export const FeatureDetails: React.FC<FeatureDetailsProps> = ({
@@ -45,6 +46,7 @@ export const FeatureDetails: React.FC<FeatureDetailsProps> = ({
   onEdit,
   onDelete,
   onShowHistory,
+  activeEditor,
 }) => {
   const { lang, canEdit, user } = useAuth();
   const isAr = lang === 'ar';
@@ -293,6 +295,14 @@ export const FeatureDetails: React.FC<FeatureDetailsProps> = ({
           </button>
         </div>
       ) : null}
+
+      {/* Live Collaboration Editing Indicator */}
+      {activeEditor && (
+        <div className="px-3 py-1.5 bg-amber-500/20 border-b border-amber-500/40 text-amber-300 text-xs flex items-center gap-2 animate-pulse">
+          <Activity className="w-3.5 h-3.5 text-amber-400" />
+          <span>{isAr ? `يقوم ${activeEditor.username} بالتعديل حالياً...` : `${activeEditor.username} is editing right now...`}</span>
+        </div>
+      )}
 
       {/* Action Toolbar */}
       <div className="p-3 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between gap-2">

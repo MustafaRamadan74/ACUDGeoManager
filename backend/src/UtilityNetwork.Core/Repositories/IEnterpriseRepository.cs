@@ -25,3 +25,4 @@ public interface IEnterpriseRepository
     // Data Quality
     Task<IReadOnlyList<LayerDataQualityDto>> GetDataQualityReportAsync(Guid? networkId, CancellationToken ct = default);
 }
+

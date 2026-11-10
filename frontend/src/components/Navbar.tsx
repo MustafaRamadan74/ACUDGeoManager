@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/authContext';
-import { NetworkDto } from '@/lib/types';
+import { NetworkDto, UserPresenceDto } from '@/lib/types';
 import {
   Shield,
   ShieldCheck,
@@ -44,6 +44,8 @@ interface NavbarProps {
   onOpenApprovals?: () => void;
   onOpenTrace?: () => void;
   onOpenDataQuality?: () => void;
+  onlineUsers?: UserPresenceDto[];
+  isRealtimeConnected?: boolean;
   pendingApprovalsCount?: number;
   canUndo?: boolean;
   canRedo?: boolean;
@@ -74,6 +76,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenApprovals,
   onOpenTrace,
   onOpenDataQuality,
+  onlineUsers = [],
+  isRealtimeConnected = false,
   pendingApprovalsCount = 0,
   canUndo = false,
   canRedo = false,
@@ -90,6 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isAdmin = user?.role === 'ADMIN';
 
   const [isSpatialMenuOpen, setIsSpatialMenuOpen] = useState(false);
+  const [isPresenceOpen, setIsPresenceOpen] = useState(false);
   const spatialMenuRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
@@ -420,6 +425,57 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden lg:inline">{isAr ? 'المستخدمين' : 'Users'}</span>
           </button>
         )}
+
+        {/* Real-time Collaboration Presence Pill */}
+        <div className="relative">
+          <button
+            onClick={() => setIsPresenceOpen(!isPresenceOpen)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition ${
+              isRealtimeConnected
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                : 'bg-slate-900 text-slate-500 border-slate-800'
+            }`}
+            title={isAr ? 'المستخدمون المتواجدون لحظياً في بيئة العمل' : 'Live Workspace Collaborators'}
+          >
+            <span className={`w-2 h-2 rounded-full ${isRealtimeConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+            <Users className="w-3.5 h-3.5 text-sky-400" />
+            <span className="font-mono font-bold">{onlineUsers.length > 0 ? onlineUsers.length : 1}</span>
+            <span className="hidden xl:inline">{isAr ? 'متصل' : 'online'}</span>
+          </button>
+
+          {isPresenceOpen && (
+            <div className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-3 z-50 space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-xs font-semibold text-slate-300">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>{isAr ? 'المتصلون ببيئة العمل' : 'Active Collaborators'}</span>
+                </span>
+                <span className="text-[10px] text-emerald-400 font-mono">SignalR Live</span>
+              </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {onlineUsers.length === 0 ? (
+                  <div className="text-[11px] text-slate-500 py-2 text-center italic">
+                    {isAr ? 'أنت المتصل الوحيد حالياً' : 'Only you are online'}
+                  </div>
+                ) : (
+                  onlineUsers.map((u) => (
+                    <div key={u.connectionId || u.userId} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-950/60 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-sky-400 font-bold text-[10px]">
+                          {u.username.substring(0, 2).toUpperCase()}
+                        </div>
+                        <span className="text-white font-medium">{u.username}</span>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        {u.role}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="h-6 w-px bg-slate-800 mx-1" />
 

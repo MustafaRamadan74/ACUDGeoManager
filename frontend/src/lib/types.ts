@@ -819,3 +819,44 @@ export interface DataQualityDashboardDto {
   layers: LayerDataQualityDto[];
 }
 
+// --- Real-time Collaboration & SignalR ---
+
+export interface UserPresenceDto {
+  connectionId: string;
+  userId: string;
+  username: string;
+  role: string;
+  activeWorkspaceId?: string | null;
+  connectedAt: string;
+}
+
+export interface FeatureChangeEvent {
+  action: 'CREATED' | 'UPDATED' | 'DELETED';
+  workspaceId: string;
+  featureTable: string;
+  featureId: string;
+  featureTypeCode: string;
+  featureName?: string | null;
+  changedBy: string;
+  changedAt: string;
+}
+
+export interface FeatureEditingEvent {
+  workspaceId: string;
+  featureTable: string;
+  featureId: string;
+  userId: string;
+  username: string;
+  isEditing: boolean;
+  timestamp: string;
+}
+
+export interface ValidationCompletedEvent {
+  runId: string;
+  workspaceId?: string | null;
+  status: string;
+  totalIssuesCount: number;
+  completedAt: string;
+}
+
+

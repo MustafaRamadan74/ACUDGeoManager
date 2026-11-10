@@ -64,6 +64,7 @@ import {
   FeatureLockDto,
   LayerDataQualityDto,
   DataQualityDashboardDto,
+  UserPresenceDto,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -804,6 +805,15 @@ export const api = {
   getDataQualityDashboard: async (networkId?: string): Promise<DataQualityDashboardDto> => {
     const query = networkId ? `?networkId=${encodeURIComponent(networkId)}` : '';
     return await request<DataQualityDashboardDto>(`/enterprise/data-quality${query}`);
+  },
+
+  // Real-time Collaboration & Presence
+  getWorkspacePresence: async (workspaceId: string): Promise<UserPresenceDto[]> => {
+    return await request<UserPresenceDto[]>(`/collaboration/workspaces/${workspaceId}/presence`);
+  },
+
+  getAllOnlineUsers: async (): Promise<UserPresenceDto[]> => {
+    return await request<UserPresenceDto[]>('/collaboration/presence/online');
   },
 };
 

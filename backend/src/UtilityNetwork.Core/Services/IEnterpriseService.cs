@@ -33,3 +33,4 @@ public interface IEnterpriseService
     // Data Quality
     Task<DataQualityDashboardDto> GetDataQualityDashboardAsync(Guid? networkId = null, CancellationToken ct = default);
 }
+

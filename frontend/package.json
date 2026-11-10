@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@geoman-io/leaflet-geoman-free": "^2.20.6",
+    "@microsoft/signalr": "^11.0.0",
     "@turf/turf": "^7.4.0",
     "clsx": "^2.1.0",
     "leaflet": "^1.9.4",

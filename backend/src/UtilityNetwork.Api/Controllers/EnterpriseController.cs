@@ -12,10 +12,14 @@ namespace UtilityNetwork.Api.Controllers;
 public sealed class EnterpriseController : ControllerBase
 {
     private readonly IEnterpriseService _enterpriseService;
+    private readonly IWorkspaceNotificationService? _notificationService;
 
-    public EnterpriseController(IEnterpriseService enterpriseService)
+    public EnterpriseController(
+        IEnterpriseService enterpriseService,
+        IWorkspaceNotificationService? notificationService = null)
     {
         _enterpriseService = enterpriseService;
+        _notificationService = notificationService;
     }
 
     private Guid GetUserId()
@@ -207,6 +211,19 @@ public sealed class EnterpriseController : ControllerBase
                 request.ClientSessionId,
                 ct
             );
+            if (_notificationService != null)
+            {
+                _ = _notificationService.NotifyFeatureEditingAsync(new FeatureEditingEvent(
+                    Guid.Empty,
+                    request.FeatureTable,
+                    featureId,
+                    userId,
+                    username,
+                    IsEditing: true,
+                    DateTimeOffset.UtcNow
+                ), ct);
+            }
+
             return Ok(lockInfo);
         }
         catch (InvalidOperationException ex)
@@ -227,6 +244,20 @@ public sealed class EnterpriseController : ControllerBase
         var userId = GetUserId();
         var isAdmin = User.IsInRole("ADMIN");
         await _enterpriseService.ReleaseLockAsync(featureId, userId, isAdmin, ct);
+
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureEditingAsync(new FeatureEditingEvent(
+                Guid.Empty,
+                "unknown",
+                featureId,
+                userId,
+                GetUsername(),
+                IsEditing: false,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
+
         return NoContent();
     }
 
@@ -263,3 +294,4 @@ public sealed class EnterpriseController : ControllerBase
         return Ok(dashboard);
     }
 }
+

@@ -11,7 +11,9 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using UtilityNetwork.Api.Hubs;
 using UtilityNetwork.Api.Middleware;
+using UtilityNetwork.Api.Services;
 using UtilityNetwork.Core.Configuration;
 using UtilityNetwork.Core.Services;
 using UtilityNetwork.Core.Validators;
@@ -48,6 +50,11 @@ builder.Services.AddControllers()
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddDataInfrastructure();
+
+// Real-time Collaboration & SignalR
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IPresenceTracker, PresenceTracker>();
+builder.Services.AddSingleton<IWorkspaceNotificationService, WorkspaceNotificationService>();
 
 // Rate Limiting for Auth endpoints
 builder.Services.AddRateLimiter(options =>
@@ -87,6 +94,19 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.FromSeconds(30),
         RoleClaimType = ClaimTypes.Role,
         NameClaimType = JwtRegisteredClaimNames.UniqueName
+    };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -215,6 +235,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<WorkspaceHub>("/hubs/workspace");
 
 app.Run();
 

@@ -19,6 +19,7 @@ public sealed class FeatureService : IFeatureService
     private readonly IUnitOfWorkFactory _uowFactory;
     private readonly IPermissionService _permissionService;
     private readonly IPendingChangeRepository _pendingRepo;
+    private readonly IWorkspaceNotificationService? _notificationService;
 
     public FeatureService(
         IFeatureRepository featureRepository,
@@ -26,7 +27,8 @@ public sealed class FeatureService : IFeatureService
         IFeatureValidationService validationService,
         IUnitOfWorkFactory uowFactory,
         IPermissionService permissionService,
-        IPendingChangeRepository pendingRepo)
+        IPendingChangeRepository pendingRepo,
+        IWorkspaceNotificationService? notificationService = null)
     {
         _featureRepository = featureRepository;
         _catalogRepository = catalogRepository;
@@ -34,6 +36,7 @@ public sealed class FeatureService : IFeatureService
         _uowFactory = uowFactory;
         _permissionService = permissionService;
         _pendingRepo = pendingRepo;
+        _notificationService = notificationService;
     }
 
     private static bool IsApproverOrAdmin(ClaimsPrincipal user)
@@ -162,6 +165,20 @@ public sealed class FeatureService : IFeatureService
         var id = await _featureRepository.CreatePointAsync(req, uow, ct);
         await uow.CommitAsync(ct);
 
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "CREATED",
+                req.NetworkId,
+                "points",
+                id,
+                req.FeatureTypeCode,
+                req.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
+
         var created = await _featureRepository.GetPointByIdAsync(id, ct);
         return created!;
     }
@@ -233,6 +250,21 @@ public sealed class FeatureService : IFeatureService
         }
 
         await uow.CommitAsync(ct);
+
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "UPDATED",
+                existing.NetworkId,
+                "points",
+                id,
+                existing.FeatureTypeCode,
+                req.Name ?? existing.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
+
         return updated;
     }
 
@@ -287,6 +319,20 @@ public sealed class FeatureService : IFeatureService
         }
 
         await uow.CommitAsync(ct);
+
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "DELETED",
+                existing.NetworkId,
+                "points",
+                id,
+                existing.FeatureTypeCode,
+                existing.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
     }
 
     // =========================================================================
@@ -369,6 +415,20 @@ public sealed class FeatureService : IFeatureService
         var id = await _featureRepository.CreateLineAsync(req, uow, ct);
         await uow.CommitAsync(ct);
 
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "CREATED",
+                req.NetworkId,
+                "lines",
+                id,
+                req.FeatureTypeCode,
+                req.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
+
         var created = await _featureRepository.GetLineByIdAsync(id, ct);
         return created!;
     }
@@ -435,6 +495,21 @@ public sealed class FeatureService : IFeatureService
         }
 
         await uow.CommitAsync(ct);
+
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "UPDATED",
+                existing.NetworkId,
+                "lines",
+                id,
+                existing.FeatureTypeCode,
+                req.Name ?? existing.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
+
         return updated;
     }
 
@@ -489,6 +564,20 @@ public sealed class FeatureService : IFeatureService
         }
 
         await uow.CommitAsync(ct);
+
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "DELETED",
+                existing.NetworkId,
+                "lines",
+                id,
+                existing.FeatureTypeCode,
+                existing.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
     }
 
     // =========================================================================
@@ -571,6 +660,20 @@ public sealed class FeatureService : IFeatureService
         var id = await _featureRepository.CreatePolygonAsync(req, uow, ct);
         await uow.CommitAsync(ct);
 
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "CREATED",
+                req.NetworkId,
+                "polygons",
+                id,
+                req.FeatureTypeCode,
+                req.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
+
         var created = await _featureRepository.GetPolygonByIdAsync(id, ct);
         return created!;
     }
@@ -637,6 +740,21 @@ public sealed class FeatureService : IFeatureService
         }
 
         await uow.CommitAsync(ct);
+
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "UPDATED",
+                existing.NetworkId,
+                "polygons",
+                id,
+                existing.FeatureTypeCode,
+                req.Name ?? existing.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
+
         return updated;
     }
 
@@ -691,6 +809,20 @@ public sealed class FeatureService : IFeatureService
         }
 
         await uow.CommitAsync(ct);
+
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyFeatureChangedAsync(new FeatureChangeEvent(
+                "DELETED",
+                existing.NetworkId,
+                "polygons",
+                id,
+                existing.FeatureTypeCode,
+                existing.Name,
+                userContext.Username,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
     }
 
     // =========================================================================

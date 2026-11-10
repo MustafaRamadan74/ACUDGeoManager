@@ -5,7 +5,17 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/lib/api';
-import { FeatureTypeDto, GeoJsonFeature, NetworkDto, ValidationIssueDto, UndoRedoStackDto, NetworkTraceResultDto } from '@/lib/types';
+import {
+  FeatureTypeDto,
+  GeoJsonFeature,
+  NetworkDto,
+  ValidationIssueDto,
+  UndoRedoStackDto,
+  NetworkTraceResultDto,
+  FeatureChangeEvent,
+  ValidationCompletedEvent,
+} from '@/lib/types';
+import { useWorkspaceCollaboration } from '@/lib/useWorkspaceCollaboration';
 import { Navbar } from '@/components/Navbar';
 import { Sidebar } from '@/components/Sidebar';
 import { FeatureDetails } from '@/components/FeatureDetails';
@@ -190,6 +200,51 @@ export default function GisPage() {
       fetchFeatures(currentBboxRef.current);
     }
   }, [activeNetworkId, fetchFeatures]);
+
+  // Real-time Collaboration & SignalR
+  const {
+    isConnected: isRealtimeConnected,
+    onlineUsers,
+    activeEditors,
+    notifyEditingFeature,
+  } = useWorkspaceCollaboration({
+    workspaceId: activeNetworkId,
+    onFeatureChanged: useCallback(
+      (ev: FeatureChangeEvent) => {
+        if (user?.username && ev.changedBy === user.username) {
+          return;
+        }
+
+        const actionName =
+          ev.action === 'CREATED'
+            ? isAr ? 'إضافة' : 'created'
+            : ev.action === 'UPDATED'
+            ? isAr ? 'تعديل' : 'updated'
+            : isAr ? 'حذف' : 'deleted';
+
+        showInfo(
+          isAr
+            ? `تحديث لحظي: قام ${ev.changedBy} بـ ${actionName} المعلم ${ev.featureName || ev.featureTypeCode}`
+            : `Live update: ${ev.changedBy} ${actionName} ${ev.featureName || ev.featureTypeCode}`
+        );
+
+        if (currentBboxRef.current) {
+          fetchFeatures(currentBboxRef.current);
+        }
+      },
+      [isAr, user?.username, showInfo, fetchFeatures]
+    ),
+    onValidationCompleted: useCallback(
+      (ev: ValidationCompletedEvent) => {
+        showInfo(
+          isAr
+            ? `اكتملت جولة التدقيق: تم العثور على ${ev.totalIssuesCount} ملاحظات.`
+            : `Validation completed: ${ev.totalIssuesCount} issues found.`
+        );
+      },
+      [isAr, showInfo]
+    ),
+  });
 
   const handleToggleType = (typeCode: string) => {
     setVisibleTypes((prev) => {
@@ -482,6 +537,8 @@ export default function GisPage() {
         onOpenApprovals={() => setIsApprovalsOpen(true)}
         onOpenTrace={() => setIsTraceOpen(true)}
         onOpenDataQuality={() => setIsDataQualityOpen(true)}
+        onlineUsers={onlineUsers}
+        isRealtimeConnected={isRealtimeConnected}
         pendingApprovalsCount={pendingApprovalsCount}
         canUndo={historyStack?.canUndo ?? false}
         canRedo={historyStack?.canRedo ?? false}
@@ -584,6 +641,7 @@ export default function GisPage() {
             onEdit={(f) => setEditingFeature(f)}
             onDelete={(f) => setDeletingFeature(f)}
             onShowHistory={(f) => setHistoryFeature(f)}
+            activeEditor={selectedFeature ? activeEditors.get(selectedFeature.id) : undefined}
           />
         )}
       </div>

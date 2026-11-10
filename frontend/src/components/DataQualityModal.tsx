@@ -356,3 +356,4 @@ export const DataQualityModal: React.FC<DataQualityModalProps> = ({ network, onC
     </div>
   );
 };
+

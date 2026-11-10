@@ -323,3 +323,4 @@ public sealed class EnterpriseRepository : IEnterpriseRepository
         return rows.ToList();
     }
 }
+

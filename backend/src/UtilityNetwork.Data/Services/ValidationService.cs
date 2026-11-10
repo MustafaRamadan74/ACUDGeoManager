@@ -17,17 +17,20 @@ public sealed class ValidationService : IValidationService
     private readonly IEnumerable<IValidationRule> _rules;
     private readonly string _connectionString;
     private readonly ILogger<ValidationService> _logger;
+    private readonly IWorkspaceNotificationService? _notificationService;
 
     public ValidationService(
         IValidationRepository validationRepository,
         IEnumerable<IValidationRule> rules,
         IOptions<DatabaseOptions> dbOptions,
-        ILogger<ValidationService> logger)
+        ILogger<ValidationService> logger,
+        IWorkspaceNotificationService? notificationService = null)
     {
         _validationRepository = validationRepository;
         _rules = rules;
         _connectionString = dbOptions.Value.DefaultConnection;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<ValidationRunDto> RunValidationAsync(Guid networkId, string startedBy, CancellationToken ct = default)
@@ -73,6 +76,17 @@ public sealed class ValidationService : IValidationService
         );
 
         await _validationRepository.CompleteValidationRunAsync(run.Id, summary, ct);
+
+        if (_notificationService != null)
+        {
+            _ = _notificationService.NotifyValidationCompletedAsync(new ValidationCompletedEvent(
+                run.Id,
+                networkId,
+                "COMPLETED",
+                allIssues.Count,
+                DateTimeOffset.UtcNow
+            ), ct);
+        }
 
         _logger.LogInformation("Validation run {RunId} finished in {Duration}ms with {Count} issues",
             run.Id, sw.ElapsedMilliseconds, allIssues.Count);
