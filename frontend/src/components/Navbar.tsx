@@ -43,6 +43,7 @@ interface NavbarProps {
   onOpenAnalysis?: () => void;
   onOpenApprovals?: () => void;
   onOpenTrace?: () => void;
+  onOpenDataQuality?: () => void;
   pendingApprovalsCount?: number;
   canUndo?: boolean;
   canRedo?: boolean;
@@ -72,6 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAnalysis,
   onOpenApprovals,
   onOpenTrace,
+  onOpenDataQuality,
   pendingApprovalsCount = 0,
   canUndo = false,
   canRedo = false,
@@ -335,6 +337,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
             <span className="hidden lg:inline">{isAr ? 'التدقيق' : 'Validation'}</span>
+          </button>
+        )}
+
+        {/* Data Quality & Completeness Dashboard */}
+        {onOpenDataQuality && (
+          <button
+            onClick={onOpenDataQuality}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 text-xs font-semibold border border-emerald-800/60 transition shadow-sm"
+            title={isAr ? 'لوحة جودة البيانات وتكامل الطبقات' : 'Data Quality Dashboard'}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden lg:inline">{isAr ? 'جودة البيانات' : 'Quality'}</span>
           </button>
         )}
 

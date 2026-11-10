@@ -25,6 +25,7 @@ import { ImportExportModal } from '@/components/ImportExportModal';
 import { AnalysisModal } from '@/components/AnalysisModal';
 import { ApprovalsModal } from '@/components/ApprovalsModal';
 import { NetworkTraceModal } from '@/components/NetworkTraceModal';
+import { DataQualityModal } from '@/components/DataQualityModal';
 import { useToast } from '@/components/Toast';
 import { Loader2 } from 'lucide-react';
 
@@ -72,6 +73,7 @@ export default function GisPage() {
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [isApprovalsOpen, setIsApprovalsOpen] = useState(false);
   const [isTraceOpen, setIsTraceOpen] = useState(false);
+  const [isDataQualityOpen, setIsDataQualityOpen] = useState(false);
   const [activeTraceResult, setActiveTraceResult] = useState<NetworkTraceResultDto | null>(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [approvalPreviewGeometry, setApprovalPreviewGeometry] = useState<any | null>(null);
@@ -479,6 +481,7 @@ export default function GisPage() {
         onOpenAnalysis={() => setIsAnalysisOpen(true)}
         onOpenApprovals={() => setIsApprovalsOpen(true)}
         onOpenTrace={() => setIsTraceOpen(true)}
+        onOpenDataQuality={() => setIsDataQualityOpen(true)}
         pendingApprovalsCount={pendingApprovalsCount}
         canUndo={historyStack?.canUndo ?? false}
         canRedo={historyStack?.canRedo ?? false}
@@ -772,6 +775,14 @@ export default function GisPage() {
         }}
         onTraceResultApplied={setActiveTraceResult}
       />
+
+      {/* Enterprise Data Quality & Completeness Modal */}
+      {isDataQualityOpen && (
+        <DataQualityModal
+          network={activeNetwork}
+          onClose={() => setIsDataQualityOpen(false)}
+        />
+      )}
     </div>
   );
 }

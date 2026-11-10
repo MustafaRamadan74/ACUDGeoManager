@@ -58,6 +58,12 @@ import {
   NetworkTraceRequest,
   NetworkTraceResultDto,
   TraceReportRequest,
+  FeatureAttachmentDto,
+  FeatureRelationshipDto,
+  CreateRelationshipRequest,
+  FeatureLockDto,
+  LayerDataQualityDto,
+  DataQualityDashboardDto,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -663,6 +669,141 @@ export const api = {
     return await request<{ message: string }>('/tiles/refresh-summaries', {
       method: 'POST',
     });
+  },
+
+  // Enterprise Capabilities
+  getFeatureAttachments: async (featureId: string): Promise<FeatureAttachmentDto[]> => {
+    return await request<FeatureAttachmentDto[]>(`/enterprise/features/${featureId}/attachments`);
+  },
+
+  uploadFeatureAttachment: async (
+    featureId: string,
+    featureTable: string,
+    file: File,
+    description?: string
+  ): Promise<FeatureAttachmentDto> => {
+    const token = getAccessToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('featureTable', featureTable);
+    if (description) {
+      formData.append('description', description);
+    }
+
+    const res = await fetch(`${BASE_URL}/enterprise/features/${featureId}/attachments`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      let errMsg = `Upload failed: ${res.statusText}`;
+      try {
+        const json = await res.json();
+        if (json.detail) errMsg = json.detail;
+      } catch {}
+      throw new Error(errMsg);
+    }
+
+    return await res.json();
+  },
+
+  downloadFeatureAttachment: async (attachmentId: string, fallbackName: string): Promise<void> => {
+    const token = getAccessToken();
+    const res = await fetch(`${BASE_URL}/enterprise/attachments/${attachmentId}/download`, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
+    if (!res.ok) {
+      let errMsg = `Download failed: ${res.statusText}`;
+      try {
+        const json = await res.json();
+        if (json.detail) errMsg = json.detail;
+      } catch {}
+      throw new Error(errMsg);
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition');
+    let filename = fallbackName;
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename="?([^";]+)"?/);
+      if (match && match[1]) filename = match[1];
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  },
+
+  deleteFeatureAttachment: async (attachmentId: string): Promise<void> => {
+    await request<void>(`/enterprise/attachments/${attachmentId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getFeatureRelationships: async (featureId: string): Promise<FeatureRelationshipDto[]> => {
+    return await request<FeatureRelationshipDto[]>(`/enterprise/features/${featureId}/relationships`);
+  },
+
+  createFeatureRelationship: async (data: CreateRelationshipRequest): Promise<FeatureRelationshipDto> => {
+    return await request<FeatureRelationshipDto>('/enterprise/relationships', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteFeatureRelationship: async (relationshipId: string): Promise<void> => {
+    await request<void>(`/enterprise/relationships/${relationshipId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  getFeatureLock: async (featureId: string): Promise<FeatureLockDto> => {
+    return await request<FeatureLockDto>(`/enterprise/features/${featureId}/lock`);
+  },
+
+  acquireFeatureLock: async (
+    featureId: string,
+    featureTable: string,
+    ttlMinutes: number = 5
+  ): Promise<FeatureLockDto> => {
+    return await request<FeatureLockDto>(`/enterprise/features/${featureId}/lock`, {
+      method: 'POST',
+      body: JSON.stringify({ featureTable, ttlMinutes }),
+    });
+  },
+
+  releaseFeatureLock: async (featureId: string): Promise<void> => {
+    await request<void>(`/enterprise/features/${featureId}/lock`, {
+      method: 'DELETE',
+    });
+  },
+
+  refreshFeatureLock: async (
+    featureId: string,
+    featureTable: string,
+    ttlMinutes: number = 5
+  ): Promise<void> => {
+    await request<void>(`/enterprise/features/${featureId}/lock/refresh`, {
+      method: 'POST',
+      body: JSON.stringify({ featureTable, ttlMinutes }),
+    });
+  },
+
+  getDataQualityDashboard: async (networkId?: string): Promise<DataQualityDashboardDto> => {
+    const query = networkId ? `?networkId=${encodeURIComponent(networkId)}` : '';
+    return await request<DataQualityDashboardDto>(`/enterprise/data-quality${query}`);
   },
 };
 

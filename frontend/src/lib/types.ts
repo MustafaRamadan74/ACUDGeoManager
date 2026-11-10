@@ -743,3 +743,79 @@ export interface TraceReportRequest {
   networkName: string;
   format?: 'PDF' | 'CSV';
 }
+
+// --- Enterprise Capabilities ---
+
+export interface FeatureAttachmentDto {
+  id: string;
+  featureId: string;
+  featureTable: string;
+  fileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+  filePath: string;
+  description?: string | null;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+export interface FeatureRelationshipDto {
+  id: string;
+  sourceFeatureId: string;
+  sourceTable: string;
+  targetFeatureId: string;
+  targetTable: string;
+  relationshipType: 'CONTAINS' | 'SERVES' | 'ATTACHED_TO' | 'FEEDS' | 'ASSOCIATED_WITH' | string;
+  description?: string | null;
+  createdBy: string;
+  createdAt: string;
+  sourceFeatureName?: string | null;
+  targetFeatureName?: string | null;
+  sourceFeatureTypeCode?: string | null;
+  targetFeatureTypeCode?: string | null;
+}
+
+export interface CreateRelationshipRequest {
+  sourceFeatureId: string;
+  sourceTable: string;
+  targetFeatureId: string;
+  targetTable: string;
+  relationshipType: string;
+  description?: string | null;
+}
+
+export interface FeatureLockDto {
+  featureId: string;
+  featureTable: string;
+  lockedByUserId: string;
+  lockedByUsername: string;
+  lockedAt: string;
+  expiresAt: string;
+  clientSessionId?: string | null;
+  isLocked: boolean;
+  isLockedByCurrentUser: boolean;
+}
+
+export interface LayerDataQualityDto {
+  featureTypeCode: string;
+  displayName: string;
+  geometryKind: string;
+  totalCount: number;
+  validGeomCount: number;
+  openIssuesCount: number;
+  completenessPct: number;
+  attachmentsCount: number;
+  relationshipsCount: number;
+}
+
+export interface DataQualityDashboardDto {
+  networkId?: string | null;
+  totalFeatures: number;
+  totalValidGeometries: number;
+  totalOpenIssues: number;
+  overallCompletenessPct: number;
+  totalAttachments: number;
+  totalRelationships: number;
+  layers: LayerDataQualityDto[];
+}
+

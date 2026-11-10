@@ -84,6 +84,10 @@ public static class DataServiceExtensions
         services.AddScoped<ITileService, TileService>();
         services.AddHostedService<Background.ScaleMaintenanceHostedService>();
 
+        // Enterprise Capabilities
+        services.AddScoped<IEnterpriseRepository, EnterpriseRepository>();
+        services.AddScoped<IEnterpriseService, EnterpriseService>();
+
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);
 
