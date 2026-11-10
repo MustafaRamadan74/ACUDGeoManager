@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
-import { Maximize2, Minimize2, Printer } from 'lucide-react';
+import { Maximize2, Minimize2, Printer, Zap, RefreshCw, Loader2 } from 'lucide-react';
+import { api } from '@/lib/api';
 import { FeatureTypeDto, GeoJsonFeature, ValidationIssueDto, NetworkTraceResultDto } from '@/lib/types';
 import { BasemapControl, BASEMAPS, BasemapKey } from '@/components/Map/BasemapControl';
 import { BookmarksControl } from '@/components/Map/BookmarksControl';
@@ -92,6 +93,18 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isRefreshingSummaries, setIsRefreshingSummaries] = useState(false);
+
+  const handleRefreshSummaries = async () => {
+    setIsRefreshingSummaries(true);
+    try {
+      await api.refreshMaterializedSummaries();
+    } catch (err) {
+      console.error('Failed to refresh materialized summaries', err);
+    } finally {
+      setIsRefreshingSummaries(false);
+    }
+  };
 
   const onDrawingCompleteRef = useRef(onDrawingComplete);
   const onPolygonSelectedRef = useRef(onPolygonSelected);
@@ -969,6 +982,31 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           getCurrentView={getCurrentView}
           isAr={isAr}
         />
+
+        {/* MVT Vector Tiles Engine Status */}
+        <div
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl backdrop-blur-md shadow-lg border bg-slate-900/85 text-slate-300 border-slate-700/80 text-[11px] font-mono select-none"
+          title={isAr ? 'محرك بلاطات الفيكتور PostGIS MVT بنطاق EPSG:3857 مع تخزين مؤقت 120 ثانية' : 'PostGIS MVT Dynamic Vector Tiles (EPSG:3857) with 120s HTTP cache'}
+        >
+          <Zap className="w-3.5 h-3.5 text-amber-400" />
+          <span className="font-semibold text-slate-200">MVT</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        </div>
+
+        {/* Refresh Materialized Summaries Button */}
+        <button
+          type="button"
+          onClick={handleRefreshSummaries}
+          disabled={isRefreshingSummaries}
+          className="p-2 rounded-xl backdrop-blur-md shadow-lg border bg-slate-900/85 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-slate-600 transition flex items-center justify-center disabled:opacity-50"
+          title={isAr ? 'تحديث الإحصائيات والجداول التراكمية السريعة (Materialized Views)' : 'Refresh Materialized Summary Views'}
+        >
+          {isRefreshingSummaries ? (
+            <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4 text-sky-400" />
+          )}
+        </button>
 
         {/* Fullscreen Button */}
         <button

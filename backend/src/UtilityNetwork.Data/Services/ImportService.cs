@@ -175,90 +175,105 @@ public sealed partial class ImportService : IImportService
 
         var importedIds = new List<Guid>();
 
-        foreach (var f in eligible)
+        // 1. Bulk insert Points
+        var pointsList = eligible.Where(f => f.GeometryKind.Equals("POINT", StringComparison.OrdinalIgnoreCase))
+            .Select(f => new
+            {
+                f.Id,
+                NetworkId = request.NetworkId,
+                f.FeatureTypeCode,
+                f.Name,
+                f.Status,
+                f.IsOpen,
+                f.AttributesJson,
+                f.WktOrGeoJson,
+                UserId = userId,
+                f.ExternalId
+            }).ToList();
+
+        if (pointsList.Count > 0)
         {
-            if (f.GeometryKind.Equals("POINT", StringComparison.OrdinalIgnoreCase))
+            const string sql = @"
+                INSERT INTO points (
+                    id, network_id, feature_type_code, name, status, is_open, attributes,
+                    geom, version, created_by, updated_by, created_at, updated_at, external_id, source
+                ) VALUES (
+                    @Id, @NetworkId, @FeatureTypeCode, @Name, @Status::feature_status, @IsOpen,
+                    COALESCE(@AttributesJson::jsonb, '{}'::jsonb),
+                    ST_SetSRID(ST_GeomFromGeoJSON(@WktOrGeoJson), 4326),
+                    1, @UserId, @UserId, now(), now(), @ExternalId, 'IMPORT'
+                );";
+
+            await uow.Connection.ExecuteAsync(new CommandDefinition(sql, pointsList, uow.Transaction, cancellationToken: ct));
+            importedIds.AddRange(pointsList.Select(p => p.Id));
+        }
+
+        // 2. Bulk insert Lines
+        var linesList = eligible.Where(f => f.GeometryKind.Equals("LINE", StringComparison.OrdinalIgnoreCase))
+            .Select(f => new
             {
-                const string sql = @"
-                    INSERT INTO points (
-                        id, network_id, feature_type_code, name, status, is_open, attributes,
-                        geom, version, created_by, updated_by, created_at, updated_at, external_id, source
-                    ) VALUES (
-                        @Id, @NetworkId, @FeatureTypeCode, @Name, @Status::feature_status, @IsOpen,
-                        COALESCE(@AttributesJson::jsonb, '{}'::jsonb),
-                        ST_SetSRID(ST_GeomFromGeoJSON(@WktOrGeoJson), 4326),
-                        1, @UserId, @UserId, now(), now(), @ExternalId, 'IMPORT'
-                    );";
+                f.Id,
+                NetworkId = request.NetworkId,
+                f.FeatureTypeCode,
+                f.Name,
+                f.Status,
+                FlowDirection = f.FlowDirection ?? "WITH_DIGITIZED",
+                f.DiameterMm,
+                f.Material,
+                f.AttributesJson,
+                f.WktOrGeoJson,
+                UserId = userId,
+                f.ExternalId
+            }).ToList();
 
-                await uow.Connection.ExecuteAsync(sql, new
-                {
-                    f.Id,
-                    NetworkId = request.NetworkId,
-                    f.FeatureTypeCode,
-                    f.Name,
-                    f.Status,
-                    f.IsOpen,
-                    f.AttributesJson,
-                    f.WktOrGeoJson,
-                    UserId = userId
-                }, uow.Transaction);
-            }
-            else if (f.GeometryKind.Equals("LINE", StringComparison.OrdinalIgnoreCase))
+        if (linesList.Count > 0)
+        {
+            const string sql = @"
+                INSERT INTO lines (
+                    id, network_id, feature_type_code, name, status, flow_direction, diameter_mm, material,
+                    attributes, geom, version, created_by, updated_by, created_at, updated_at, external_id, source
+                ) VALUES (
+                    @Id, @NetworkId, @FeatureTypeCode, @Name, @Status::feature_status,
+                    @FlowDirection::flow_direction, @DiameterMm, @Material,
+                    COALESCE(@AttributesJson::jsonb, '{}'::jsonb),
+                    ST_SetSRID(ST_GeomFromGeoJSON(@WktOrGeoJson), 4326),
+                    1, @UserId, @UserId, now(), now(), @ExternalId, 'IMPORT'
+                );";
+
+            await uow.Connection.ExecuteAsync(new CommandDefinition(sql, linesList, uow.Transaction, cancellationToken: ct));
+            importedIds.AddRange(linesList.Select(l => l.Id));
+        }
+
+        // 3. Bulk insert Polygons
+        var polygonsList = eligible.Where(f => f.GeometryKind.Equals("POLYGON", StringComparison.OrdinalIgnoreCase))
+            .Select(f => new
             {
-                const string sql = @"
-                    INSERT INTO lines (
-                        id, network_id, feature_type_code, name, status, flow_direction, diameter_mm, material,
-                        attributes, geom, version, created_by, updated_by, created_at, updated_at, external_id, source
-                    ) VALUES (
-                        @Id, @NetworkId, @FeatureTypeCode, @Name, @Status::feature_status,
-                        @FlowDirection::flow_direction, @DiameterMm, @Material,
-                        COALESCE(@AttributesJson::jsonb, '{}'::jsonb),
-                        ST_SetSRID(ST_GeomFromGeoJSON(@WktOrGeoJson), 4326),
-                        1, @UserId, @UserId, now(), now(), @ExternalId, 'IMPORT'
-                    );";
+                f.Id,
+                NetworkId = request.NetworkId,
+                f.FeatureTypeCode,
+                f.Name,
+                f.Status,
+                f.AttributesJson,
+                f.WktOrGeoJson,
+                UserId = userId,
+                f.ExternalId
+            }).ToList();
 
-                await uow.Connection.ExecuteAsync(sql, new
-                {
-                    f.Id,
-                    NetworkId = request.NetworkId,
-                    f.FeatureTypeCode,
-                    f.Name,
-                    f.Status,
-                    FlowDirection = f.FlowDirection ?? "WITH_DIGITIZED",
-                    f.DiameterMm,
-                    f.Material,
-                    f.AttributesJson,
-                    f.WktOrGeoJson,
-                    UserId = userId
-                }, uow.Transaction);
-            }
-            else // POLYGON
-            {
-                const string sql = @"
-                    INSERT INTO polygons (
-                        id, network_id, feature_type_code, name, status, attributes,
-                        geom, version, created_by, updated_by, created_at, updated_at, external_id, source
-                    ) VALUES (
-                        @Id, @NetworkId, @FeatureTypeCode, @Name, @Status::feature_status,
-                        COALESCE(@AttributesJson::jsonb, '{}'::jsonb),
-                        ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(@WktOrGeoJson), 4326)),
-                        1, @UserId, @UserId, now(), now(), @ExternalId, 'IMPORT'
-                    );";
+        if (polygonsList.Count > 0)
+        {
+            const string sql = @"
+                INSERT INTO polygons (
+                    id, network_id, feature_type_code, name, status, attributes,
+                    geom, version, created_by, updated_by, created_at, updated_at, external_id, source
+                ) VALUES (
+                    @Id, @NetworkId, @FeatureTypeCode, @Name, @Status::feature_status,
+                    COALESCE(@AttributesJson::jsonb, '{}'::jsonb),
+                    ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(@WktOrGeoJson), 4326)),
+                    1, @UserId, @UserId, now(), now(), @ExternalId, 'IMPORT'
+                );";
 
-                await uow.Connection.ExecuteAsync(sql, new
-                {
-                    f.Id,
-                    NetworkId = request.NetworkId,
-                    f.FeatureTypeCode,
-                    f.Name,
-                    f.Status,
-                    f.AttributesJson,
-                    f.WktOrGeoJson,
-                    UserId = userId
-                }, uow.Transaction);
-            }
-
-            importedIds.Add(f.Id);
+            await uow.Connection.ExecuteAsync(new CommandDefinition(sql, polygonsList, uow.Transaction, cancellationToken: ct));
+            importedIds.AddRange(polygonsList.Select(poly => poly.Id));
         }
 
         // Commit transaction and clear user redo stack

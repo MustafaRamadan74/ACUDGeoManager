@@ -79,6 +79,11 @@ public static class DataServiceExtensions
         services.AddScoped<ITraceRepository, TraceRepository>();
         services.AddScoped<ITraceService, TraceService>();
 
+        // Vector Tiles & Scale Performance
+        services.AddScoped<ITileRepository, TileRepository>();
+        services.AddScoped<ITileService, TileService>();
+        services.AddHostedService<Background.ScaleMaintenanceHostedService>();
+
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);
 

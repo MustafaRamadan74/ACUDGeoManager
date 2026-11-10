@@ -651,6 +651,19 @@ export const api = {
   downloadTraceReport: async (data: TraceReportRequest): Promise<void> => {
     await downloadReportFile('/reports/trace', data, `Trace_${data.traceResult.mode}_Report`);
   },
+
+  // Vector Tiles & Scale Performance
+  getVectorTileUrl: (networkId?: string): string => {
+    return networkId
+      ? `${BASE_URL}/tiles/${networkId}/{z}/{x}/{y}.mvt`
+      : `${BASE_URL}/tiles/{z}/{x}/{y}.mvt`;
+  },
+
+  refreshMaterializedSummaries: async (): Promise<{ message: string }> => {
+    return await request<{ message: string }>('/tiles/refresh-summaries', {
+      method: 'POST',
+    });
+  },
 };
 
 async function downloadReportFile(endpoint: string, body: any, fallbackName: string): Promise<void> {

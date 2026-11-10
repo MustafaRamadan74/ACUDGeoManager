@@ -37,7 +37,7 @@ public sealed record SeedOptions
             }
         }
 
-        if (size is not ("small" or "medium"))
+        if (size is not ("small" or "medium" or "stress"))
         {
             Console.WriteLine($"[WARN] Unrecognized size '{size}', defaulting to 'small'.");
             size = "small";

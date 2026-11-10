@@ -222,20 +222,14 @@ public sealed class AnalysisService : IAnalysisService
         await using var conn = new NpgsqlConnection(_connectionString);
         await conn.OpenAsync(ct);
 
-        // 1. By Type
+        // 1. By Type (Accelerated via Materialized Summary View)
         const string byTypeSql = @"
             SELECT ft.code AS FeatureTypeCode, ft.display_name AS DisplayName, ft.geometry_kind AS GeometryKind,
-                   COUNT(f.id) AS Count,
-                   COALESCE(SUM(f.length_m), 0.0) AS TotalLengthMeters,
-                   COALESCE(SUM(f.area_sqm), 0.0) AS TotalAreaSqM
+                   COALESCE(SUM(mv.count), 0)::bigint AS Count,
+                   COALESCE(SUM(mv.total_length_m), 0.0) AS TotalLengthMeters,
+                   COALESCE(SUM(mv.total_area_sqm), 0.0) AS TotalAreaSqM
             FROM feature_types ft
-            LEFT JOIN (
-                SELECT id, feature_type_code, network_id, NULL::float AS length_m, NULL::float AS area_sqm FROM points
-                UNION ALL
-                SELECT id, feature_type_code, network_id, ST_Length(geom::geography)::float AS length_m, NULL::float AS area_sqm FROM lines
-                UNION ALL
-                SELECT id, feature_type_code, network_id, NULL::float AS length_m, ST_Area(geom::geography)::float AS area_sqm FROM polygons
-            ) f ON f.feature_type_code = ft.code AND f.network_id = @networkId
+            LEFT JOIN mv_network_feature_counts mv ON mv.feature_type_code = ft.code AND mv.network_id = @networkId
             WHERE ft.network_domain = (SELECT domain FROM networks WHERE id = @networkId)
             GROUP BY ft.code, ft.display_name, ft.geometry_kind
             ORDER BY Count DESC, ft.display_name ASC;";

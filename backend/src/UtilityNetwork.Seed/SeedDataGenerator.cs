@@ -23,10 +23,10 @@ public static class SeedDataGenerator
         var plantedErrors = PlantErrors(points, lines, polygons);
 
         // 2. Base Water Network
-        GenerateWaterNetwork(rng, points, lines, polygons, size == "medium");
+        GenerateWaterNetwork(rng, points, lines, polygons, size);
 
         // 3. Urban Assets Network
-        GenerateUrbanAssets(rng, points, lines, polygons, size == "medium");
+        GenerateUrbanAssets(rng, points, lines, polygons, size);
 
         return new SeedDataset(points, lines, polygons, plantedErrors);
     }
@@ -346,9 +346,15 @@ public static class SeedDataGenerator
         List<SeedPointRecord> points,
         List<SeedLineRecord> lines,
         List<SeedPolygonRecord> polygons,
-        bool isMedium)
+        string size)
     {
-        var clustersCount = isMedium ? 4 : 1;
+        var isMedium = size is "medium" or "stress";
+        var clustersCount = size switch
+        {
+            "stress" => 16,
+            "medium" => 4,
+            _ => 1
+        };
 
         for (var c = 0; c < clustersCount; c++)
         {
@@ -416,8 +422,8 @@ public static class SeedDataGenerator
             ));
 
             // Grid distribution: generate a grid of pipes, valves, fittings, and hydrants
-            var gridRows = isMedium ? 6 : 4;
-            var gridCols = isMedium ? 8 : 5;
+            var gridRows = size == "stress" ? 12 : (size == "medium" ? 6 : 4);
+            var gridCols = size == "stress" ? 16 : (size == "medium" ? 8 : 5);
 
             var prevNode = new double[] { psX, psY };
 
@@ -589,9 +595,15 @@ public static class SeedDataGenerator
         List<SeedPointRecord> points,
         List<SeedLineRecord> lines,
         List<SeedPolygonRecord> polygons,
-        bool isMedium)
+        string size)
     {
-        var clustersCount = isMedium ? 4 : 1;
+        var isMedium = size is "medium" or "stress";
+        var clustersCount = size switch
+        {
+            "stress" => 16,
+            "medium" => 4,
+            _ => 1
+        };
         var buildingTypes = new[] { "RESIDENTIAL", "COMMERCIAL", "ADMINISTRATIVE", "GOVERNMENTAL", "EDUCATIONAL", "HEALTHCARE" };
         var roadClasses = new[] { "HIGHWAY", "ARTERIAL", "COLLECTOR", "LOCAL", "PEDESTRIAN" };
         var poleTypes = new[] { "STREET_LIGHT", "CCTV", "WIFI_HOTSPOT", "ENVIRONMENTAL_SENSOR", "INTEGRATED_SMART_POLE" };
