@@ -7,7 +7,7 @@ namespace UtilityNetwork.Data.Validation.Rules;
 public sealed class ReversedFlowRule : IValidationRule
 {
     public string RuleCode => "RULE_REVERSED_FLOW";
-    public string DisplayName => "Reversed or Unfed Flow Direction";
+    public string DisplayName => "Unfed Segment Following Direction (Reversed Flow)";
     public ValidationSeverity DefaultSeverity => ValidationSeverity.ERROR;
 
     public async Task<IReadOnlyList<ValidationIssueDto>> EvaluateAsync(ValidationContext context, CancellationToken ct = default)
@@ -44,7 +44,7 @@ public sealed class ReversedFlowRule : IValidationRule
                 "lines",
                 id,
                 assetName,
-                $"Pipe asset '{assetName}' has reversed or opposing flow direction ('{flowDir}')",
+                $"Pipe asset '{assetName}' is unfed or opposes network flow direction ('{flowDir}')",
                 geojson,
                 IssueStatus.OPEN,
                 null, null, null, null

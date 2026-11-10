@@ -5,6 +5,7 @@ import {
   ShieldAlert,
   Play,
   RotateCcw,
+  RotateCw,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -16,7 +17,8 @@ import {
   Check,
   ChevronRight,
   Loader2,
-  Layers
+  Layers,
+  Network as NetworkIcon
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/authContext';
@@ -26,8 +28,23 @@ import {
   ValidationIssueDto,
   ValidationSeverity,
   IssueStatus,
-  GeoJsonFeature
+  GeoJsonFeature,
+  TopologyStatusDto
 } from '@/lib/types';
+
+const RULE_LABELS: Record<string, { ar: string; en: string }> = {
+  RULE_VALVE_OFF_PIPE: { ar: 'محبس غير متصل بخط', en: 'Valve Off Pipe' },
+  RULE_DANGLING_PIPE: { ar: 'نهاية خط معلقة', en: 'Dangling Pipe End' },
+  RULE_DUPLICATE_POINTS: { ar: 'تكرار نقاط متطابقة', en: 'Duplicate Points' },
+  RULE_DIR_UNKNOWN: { ar: 'اتجاه سريان غير محدد', en: 'Unknown Flow Direction' },
+  RULE_ISOLATED_NO_SOURCE: { ar: 'مكون معزول بلا مصدر', en: 'Isolated Component (No Source)' },
+  RULE_REVERSED_FLOW: { ar: 'سريان معكوس / غير مغذى', en: 'Unfed / Reversed Flow' },
+  RULE_DIRECTIONAL_CYCLE: { ar: 'حلقة سريان مغلقة', en: 'Directional Flow Cycle' },
+  RULE_MISSING_TERMINAL: { ar: 'نهاية بلا معلم طرفي', en: 'Missing Terminal Feature' },
+  RULE_DUPLICATE_ID: { ar: 'تكرار معرف المعلم', en: 'Duplicate External ID' },
+  RULE_SELF_INTERSECTION: { ar: 'تقاطع ذاتي للخط', en: 'Self Intersection' },
+  RULE_INVALID_GEOMETRY: { ar: 'هندسة جغرافية غير صالحة', en: 'Invalid Geometry' },
+};
 
 interface ValidationDashboardModalProps {
   isOpen: boolean;
@@ -65,6 +82,24 @@ export const ValidationDashboardModal: React.FC<ValidationDashboardModalProps> =
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingIssueId, setUpdatingIssueId] = useState<string | null>(null);
+
+  // Topology state
+  const [topologyStatus, setTopologyStatus] = useState<TopologyStatusDto | null>(null);
+  const [isRebuildingTopology, setIsRebuildingTopology] = useState(false);
+
+  // Fetch topology status
+  const fetchTopologyStatus = useCallback(async () => {
+    if (!activeNetworkId) {
+      setTopologyStatus(null);
+      return;
+    }
+    try {
+      const status = await api.getTopologyStatus(activeNetworkId);
+      setTopologyStatus(status);
+    } catch (err) {
+      console.error('Failed to load topology status', err);
+    }
+  }, [activeNetworkId]);
 
   // Fetch runs history
   const fetchRuns = useCallback(async () => {
@@ -115,6 +150,26 @@ export const ValidationDashboardModal: React.FC<ValidationDashboardModalProps> =
       fetchIssues();
     }
   }, [isOpen, selectedRunId, statusFilter, severityFilter, fetchIssues]);
+
+  useEffect(() => {
+    if (isOpen && activeNetworkId) {
+      fetchTopologyStatus();
+    }
+  }, [isOpen, activeNetworkId, fetchTopologyStatus]);
+
+  // Rebuild network topology
+  const handleRebuildTopology = async () => {
+    if (!activeNetworkId) return;
+    setIsRebuildingTopology(true);
+    try {
+      await api.rebuildTopology(activeNetworkId);
+      await fetchTopologyStatus();
+    } catch (err) {
+      console.error('Failed to rebuild topology', err);
+    } finally {
+      setIsRebuildingTopology(false);
+    }
+  };
 
   // Trigger a new validation run
   const handleRunValidation = async () => {
@@ -263,6 +318,45 @@ export const ValidationDashboardModal: React.FC<ValidationDashboardModalProps> =
                 )}
               </button>
             )}
+
+            {/* Rebuild Topology Button */}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleRebuildTopology}
+                disabled={isRebuildingTopology || !activeNetworkId}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                  topologyStatus?.isDirty
+                    ? 'bg-amber-950/60 hover:bg-amber-900/60 text-amber-300 border-amber-700/60 shadow-sm shadow-amber-950/40'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                } disabled:opacity-50`}
+                title={
+                  topologyStatus
+                    ? `${isAr ? 'العقد' : 'Nodes'}: ${topologyStatus.nodeCount}, ${isAr ? 'الحواف' : 'Edges'}: ${topologyStatus.edgeCount}${topologyStatus.isDirty ? (isAr ? ' (تتطلب إعادة بناء)' : ' (Needs rebuild)') : ''}`
+                    : ''
+                }
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isRebuildingTopology ? 'animate-spin text-sky-400' : ''}`} />
+                <span>
+                  {isRebuildingTopology
+                    ? (isAr ? 'جارٍ بناء الطوبولوجيا...' : 'Rebuilding...')
+                    : (isAr ? 'إعادة بناء الطوبولوجيا' : 'Rebuild Topology')}
+                </span>
+                {topologyStatus && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                      topologyStatus.isDirty
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    }`}
+                  >
+                    {topologyStatus.isDirty
+                      ? (isAr ? 'بحاجة لتحديث' : 'Dirty')
+                      : (isAr ? 'محدّثة' : 'Clean')}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Navigation Tabs */}
@@ -294,6 +388,57 @@ export const ValidationDashboardModal: React.FC<ValidationDashboardModalProps> =
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {activeTab === 'issues' ? (
             <>
+              {/* Topology Summary Bar */}
+              {topologyStatus && (
+                <div className="flex flex-wrap items-center justify-between px-4 py-2.5 bg-slate-800/50 border border-slate-700/60 rounded-xl text-xs gap-3">
+                  <div className="flex flex-wrap items-center gap-4 text-slate-300">
+                    <span className="font-semibold text-slate-200 flex items-center gap-2">
+                      <NetworkIcon className="w-4 h-4 text-sky-400" />
+                      <span>{isAr ? 'حالة الطوبولوجيا:' : 'Topology:'}</span>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                          topologyStatus.isDirty
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${topologyStatus.isDirty ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                        {topologyStatus.isDirty
+                          ? (isAr ? 'بحاجة لإعادة بناء (Dirty)' : 'Dirty (Out of sync)')
+                          : (isAr ? 'جاهزة ومطابقة (Clean)' : 'Clean')}
+                      </span>
+                    </span>
+
+                    <span className="text-slate-400">
+                      {isAr ? 'العقد (Nodes):' : 'Nodes:'}{' '}
+                      <strong className="text-white font-mono text-xs">{topologyStatus.nodeCount}</strong>
+                    </span>
+
+                    <span className="text-slate-400">
+                      {isAr ? 'حواف السريان (Edges):' : 'Edges:'}{' '}
+                      <strong className="text-white font-mono text-xs">{topologyStatus.edgeCount}</strong>
+                    </span>
+
+                    {topologyStatus.lastRebuiltAt && (
+                      <span className="text-slate-400">
+                        {isAr ? 'آخر بناء:' : 'Last Rebuild:'}{' '}
+                        <span className="font-mono text-slate-300">
+                          {new Date(topologyStatus.lastRebuiltAt).toLocaleTimeString()}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+
+                  {topologyStatus.isDirty && (
+                    <span className="text-[11px] text-amber-300/90 font-medium">
+                      {isAr
+                        ? 'تنبيه: تم إدخال تعديلات هندسية على الخطوط أو النقاط، يُرجى إعادة بناء الطوبولوجيا'
+                        : 'Notice: Network geometry has changed. Rebuild topology to update network connectivity.'}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Stat Cards */}
               <div className="grid grid-cols-4 gap-3">
                 <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
@@ -447,8 +592,13 @@ export const ValidationDashboardModal: React.FC<ValidationDashboardModalProps> =
                           </td>
 
                           {/* Rule Code */}
-                          <td className="py-3 px-3 font-mono text-slate-300 whitespace-nowrap">
-                            {issue.ruleCode}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <div className="font-semibold text-white">
+                              {RULE_LABELS[issue.ruleCode]?.[isAr ? 'ar' : 'en'] || issue.ruleCode}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {issue.ruleCode}
+                            </div>
                           </td>
 
                           {/* Asset Name */}

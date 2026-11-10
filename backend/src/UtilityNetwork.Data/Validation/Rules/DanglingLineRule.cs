@@ -38,8 +38,7 @@ public sealed class DanglingLineRule : IValidationRule
                       SELECT 1 FROM points pt WHERE pt.network_id = l.network_id
                       AND ST_DWithin(ST_EndPoint(l.geom)::geography, pt.geom::geography, 0.5)
                   ))
-              )
-              AND l.external_id = 'PIPE-ERR-06';";
+              );";
 
         await using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("network_id", context.NetworkId);

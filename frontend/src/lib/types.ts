@@ -648,3 +648,23 @@ export interface ApprovalResultDto {
 export interface UpdateLayerApprovalFlagRequest {
   requiresApproval: boolean;
 }
+
+// --- Topology Models ---
+export interface TopologyStatusDto {
+  networkId: string;
+  isDirty: boolean;
+  lastRebuiltAt?: string | null;
+  nodeCount: number;
+  edgeCount: number;
+  dirtyFeatureCount: number;
+}
+
+export interface RebuildTopologyResultDto {
+  networkId: string;
+  isDirty: boolean;
+  nodeCount: number;
+  edgeCount: number;
+  rebuiltAt: string;
+  durationMs: number;
+  message: string;
+}

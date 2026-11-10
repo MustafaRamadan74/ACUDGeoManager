@@ -53,6 +53,8 @@ import {
   ApprovalResultDto,
   PendingChangeSubmittedDto,
   UpdateLayerApprovalFlagRequest,
+  TopologyStatusDto,
+  RebuildTopologyResultDto,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -611,6 +613,27 @@ export const api = {
     return await request<{ featureTypeCode: string; requiresApproval: boolean }>(`/approvals/layers/${layerCode}`, {
       method: 'PATCH',
       body: JSON.stringify({ requiresApproval }),
+    });
+  },
+
+  // Topology Engine
+  getTopologyStatus: async (networkId: string): Promise<TopologyStatusDto> => {
+    return await request<TopologyStatusDto>(`/topology/${networkId}/status`);
+  },
+
+  getAllTopologyStatuses: async (): Promise<TopologyStatusDto[]> => {
+    return await request<TopologyStatusDto[]>('/topology/statuses');
+  },
+
+  rebuildTopology: async (networkId: string): Promise<RebuildTopologyResultDto> => {
+    return await request<RebuildTopologyResultDto>(`/topology/${networkId}/rebuild`, {
+      method: 'POST',
+    });
+  },
+
+  rebuildAllTopologies: async (): Promise<RebuildTopologyResultDto[]> => {
+    return await request<RebuildTopologyResultDto[]>('/topology/rebuild-all', {
+      method: 'POST',
     });
   },
 };

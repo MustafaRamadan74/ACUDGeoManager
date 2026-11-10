@@ -52,6 +52,9 @@ public static class DataServiceExtensions
         services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.DanglingLineRule>();
         services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.ReversedFlowRule>();
         services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.IsolatedNoSourceRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.DirectionUnknownRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.DirectionalCycleRule>();
+        services.AddTransient<UtilityNetwork.Core.Validation.IValidationRule, UtilityNetwork.Data.Validation.Rules.MissingTerminalFeatureRule>();
 
         // Import & Export Services
         services.AddSingleton<IImportPreviewStore, MemoryImportPreviewStore>();
@@ -69,6 +72,10 @@ public static class DataServiceExtensions
         // Approvals & Workflow
         services.AddScoped<IPendingChangeRepository, PendingChangeRepository>();
         services.AddScoped<IApprovalService, ApprovalService>();
+
+        // Topology Engine
+        services.AddScoped<ITopologyRepository, TopologyRepository>();
+        services.AddScoped<ITopologyService, TopologyService>();
 
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);
