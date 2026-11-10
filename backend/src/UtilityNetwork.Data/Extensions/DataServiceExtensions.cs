@@ -73,9 +73,11 @@ public static class DataServiceExtensions
         services.AddScoped<IPendingChangeRepository, PendingChangeRepository>();
         services.AddScoped<IApprovalService, ApprovalService>();
 
-        // Topology Engine
+        // Topology Engine & Network Trace
         services.AddScoped<ITopologyRepository, TopologyRepository>();
         services.AddScoped<ITopologyService, TopologyService>();
+        services.AddScoped<ITraceRepository, TraceRepository>();
+        services.AddScoped<ITraceService, TraceService>();
 
         services.AddHealthChecks()
             .AddCheck<NpgsqlHealthCheck>("postgis-db", tags: ["db", "ready"]);

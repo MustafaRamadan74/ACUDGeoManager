@@ -42,6 +42,7 @@ interface NavbarProps {
   onOpenImportExport?: () => void;
   onOpenAnalysis?: () => void;
   onOpenApprovals?: () => void;
+  onOpenTrace?: () => void;
   pendingApprovalsCount?: number;
   canUndo?: boolean;
   canRedo?: boolean;
@@ -70,6 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenImportExport,
   onOpenAnalysis,
   onOpenApprovals,
+  onOpenTrace,
   pendingApprovalsCount = 0,
   canUndo = false,
   canRedo = false,
@@ -357,6 +359,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Activity className="w-3.5 h-3.5 text-sky-400" />
             <span className="hidden lg:inline">{isAr ? 'التحليلات والتقارير' : 'Analysis'}</span>
+          </button>
+        )}
+
+        {/* Network Trace & Outage Isolation */}
+        {onOpenTrace && (
+          <button
+            onClick={onOpenTrace}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-950/40 hover:bg-teal-900/60 text-teal-300 text-xs font-semibold border border-teal-800/60 transition shadow-sm"
+            title={isAr ? 'تتبع الشبكات الهيدروليكية وعزل الأعطال' : 'Network Trace & Outage Isolation Engine'}
+          >
+            <Compass className="w-3.5 h-3.5 text-teal-400" />
+            <span className="hidden lg:inline">{isAr ? 'تتبع الشبكة' : 'Trace'}</span>
           </button>
         )}
 

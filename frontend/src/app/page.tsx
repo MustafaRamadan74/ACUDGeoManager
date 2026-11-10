@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/authContext';
 import { api } from '@/lib/api';
-import { FeatureTypeDto, GeoJsonFeature, NetworkDto, ValidationIssueDto, UndoRedoStackDto } from '@/lib/types';
+import { FeatureTypeDto, GeoJsonFeature, NetworkDto, ValidationIssueDto, UndoRedoStackDto, NetworkTraceResultDto } from '@/lib/types';
 import { Navbar } from '@/components/Navbar';
 import { Sidebar } from '@/components/Sidebar';
 import { FeatureDetails } from '@/components/FeatureDetails';
@@ -24,6 +24,7 @@ import { HistoryPanelModal } from '@/components/HistoryPanelModal';
 import { ImportExportModal } from '@/components/ImportExportModal';
 import { AnalysisModal } from '@/components/AnalysisModal';
 import { ApprovalsModal } from '@/components/ApprovalsModal';
+import { NetworkTraceModal } from '@/components/NetworkTraceModal';
 import { useToast } from '@/components/Toast';
 import { Loader2 } from 'lucide-react';
 
@@ -70,6 +71,8 @@ export default function GisPage() {
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const [isApprovalsOpen, setIsApprovalsOpen] = useState(false);
+  const [isTraceOpen, setIsTraceOpen] = useState(false);
+  const [activeTraceResult, setActiveTraceResult] = useState<NetworkTraceResultDto | null>(null);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [approvalPreviewGeometry, setApprovalPreviewGeometry] = useState<any | null>(null);
   const [analysisGeometry, setAnalysisGeometry] = useState<any | null>(null);
@@ -475,6 +478,7 @@ export default function GisPage() {
         onOpenImportExport={() => setIsImportExportOpen(true)}
         onOpenAnalysis={() => setIsAnalysisOpen(true)}
         onOpenApprovals={() => setIsApprovalsOpen(true)}
+        onOpenTrace={() => setIsTraceOpen(true)}
         pendingApprovalsCount={pendingApprovalsCount}
         canUndo={historyStack?.canUndo ?? false}
         canRedo={historyStack?.canRedo ?? false}
@@ -529,6 +533,7 @@ export default function GisPage() {
             isSelectingPolygon={isSelectingPolygon}
             analysisGeometry={analysisGeometry}
             approvalPreviewGeometry={approvalPreviewGeometry}
+            traceResult={activeTraceResult}
             isMeasuring={measuringMode}
             onMeasureDrawingComplete={(geom) => {
               setDrawnMeasureGeometry(geom);
@@ -738,6 +743,34 @@ export default function GisPage() {
           }
         }}
         onPreviewGeometry={setApprovalPreviewGeometry}
+      />
+
+      {/* Network Trace & Outage Isolation Modal */}
+      <NetworkTraceModal
+        isOpen={isTraceOpen}
+        onClose={() => setIsTraceOpen(false)}
+        networks={networks}
+        activeNetworkId={activeNetworkId}
+        onSelectNetwork={setActiveNetworkId}
+        selectedFeature={selectedFeature}
+        onZoomToCoordinates={(coords) => {
+          if (coords) {
+            setTargetZoomFeature({
+              id: 'temp-zoom',
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [coords[1], coords[0]] },
+              properties: {
+                id: 'temp-zoom',
+                networkId: activeNetworkId || '',
+                featureTypeCode: 'POINT',
+                name: 'Zoom Target',
+                status: 'ACTIVE',
+                geometryKind: 'POINT',
+              },
+            });
+          }
+        }}
+        onTraceResultApplied={setActiveTraceResult}
       />
     </div>
   );

@@ -71,4 +71,15 @@ public sealed class ReportsController : ControllerBase
         var result = await _reportService.GenerateAnalysisWidgetReportAsync(request, ct);
         return File(result.Content, result.ContentType, result.FileName);
     }
+
+    /// <summary>
+    /// Exports Network Trace & Isolation analysis results to PDF or CSV.
+    /// </summary>
+    [HttpPost("trace")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExportTraceReportAsync([FromBody] TraceReportRequest request, CancellationToken ct = default)
+    {
+        var result = await _reportService.GenerateTraceReportAsync(request, ct);
+        return File(result.Content, result.ContentType, result.FileName);
+    }
 }

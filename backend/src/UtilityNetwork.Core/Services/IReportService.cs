@@ -12,4 +12,5 @@ public interface IReportService
     Task<GeneratedReportResult> GenerateFeatureHistoryReportAsync(FeatureHistoryReportRequest request, CancellationToken ct = default);
     Task<GeneratedReportResult> GenerateUserActivityReportAsync(UserActivityReportRequest request, CancellationToken ct = default);
     Task<GeneratedReportResult> GenerateAnalysisWidgetReportAsync(AnalysisWidgetExportRequest request, CancellationToken ct = default);
+    Task<GeneratedReportResult> GenerateTraceReportAsync(TraceReportRequest request, CancellationToken ct = default);
 }

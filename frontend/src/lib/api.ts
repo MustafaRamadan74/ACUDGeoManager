@@ -55,6 +55,9 @@ import {
   UpdateLayerApprovalFlagRequest,
   TopologyStatusDto,
   RebuildTopologyResultDto,
+  NetworkTraceRequest,
+  NetworkTraceResultDto,
+  TraceReportRequest,
 } from './types';
 
 let inMemoryToken: string | null = null;
@@ -635,6 +638,18 @@ export const api = {
     return await request<RebuildTopologyResultDto[]>('/topology/rebuild-all', {
       method: 'POST',
     });
+  },
+
+  // Network Trace Engine
+  executeNetworkTrace: async (networkId: string, data: NetworkTraceRequest): Promise<NetworkTraceResultDto> => {
+    return await request<NetworkTraceResultDto>(`/topology/${networkId}/trace`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  downloadTraceReport: async (data: TraceReportRequest): Promise<void> => {
+    await downloadReportFile('/reports/trace', data, `Trace_${data.traceResult.mode}_Report`);
   },
 };
 

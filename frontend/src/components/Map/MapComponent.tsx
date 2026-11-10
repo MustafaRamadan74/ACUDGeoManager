@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import '@geoman-io/leaflet-geoman-free';
 import { Maximize2, Minimize2, Printer } from 'lucide-react';
-import { FeatureTypeDto, GeoJsonFeature, ValidationIssueDto } from '@/lib/types';
+import { FeatureTypeDto, GeoJsonFeature, ValidationIssueDto, NetworkTraceResultDto } from '@/lib/types';
 import { BasemapControl, BASEMAPS, BasemapKey } from '@/components/Map/BasemapControl';
 import { BookmarksControl } from '@/components/Map/BookmarksControl';
 import { LiveCoordinatesBar } from '@/components/Map/LiveCoordinatesBar';
@@ -31,6 +31,7 @@ interface MapComponentProps {
   onPolygonSelected?: (polygonGeoJson: any) => void;
   analysisGeometry?: any | null;
   approvalPreviewGeometry?: any | null;
+  traceResult?: NetworkTraceResultDto | null;
   isMeasuring?: 'LINE' | 'POLYGON' | null;
   onMeasureDrawingComplete?: (geometry: any) => void;
   drawnMeasureGeometry?: any | null;
@@ -49,6 +50,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   isSelectingPolygon = false,
   analysisGeometry,
   approvalPreviewGeometry,
+  traceResult,
   isMeasuring = null,
   onMeasureDrawingComplete,
   drawnMeasureGeometry,
@@ -67,6 +69,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const validationLayerRef = useRef<L.GeoJSON | null>(null);
   const analysisLayerRef = useRef<L.GeoJSON | null>(null);
   const approvalPreviewLayerRef = useRef<L.GeoJSON | null>(null);
+  const traceLayerRef = useRef<L.LayerGroup | null>(null);
   const measureLayerRef = useRef<L.GeoJSON | null>(null);
   const basemapLayerRef = useRef<L.TileLayer | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -495,6 +498,102 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       console.error('Failed to render approval preview geometry:', err);
     }
   }, [approvalPreviewGeometry, isAr]);
+
+  // React to Network Trace Result visualization
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (traceLayerRef.current) {
+      map.removeLayer(traceLayerRef.current);
+      traceLayerRef.current = null;
+    }
+
+    if (!traceResult) return;
+
+    try {
+      const group = L.layerGroup();
+      const bounds = L.latLngBounds([]);
+
+      // 1. Draw Affected Service Zones (Polygons)
+      if (traceResult.affectedPolygons && traceResult.affectedPolygons.length > 0) {
+        traceResult.affectedPolygons.forEach((poly) => {
+          if (!poly.geojson) return;
+          const polyLayer = L.geoJSON(poly.geojson, {
+            style: {
+              color: '#F97316',
+              weight: 2,
+              fillColor: '#FB923C',
+              fillOpacity: 0.2,
+              dashArray: '4, 4',
+            },
+          });
+          polyLayer.bindTooltip(`<b>${poly.name}</b><br/>Type: ${poly.feature_type_code}`, { sticky: true });
+          polyLayer.addTo(group);
+          const b = polyLayer.getBounds();
+          if (b.isValid()) bounds.extend(b);
+        });
+      }
+
+      // 2. Draw Traversed Edges (Pipes)
+      const edgeColor =
+        traceResult.mode === 'ISOLATION'
+          ? '#EF4444' // Red / Amber for isolated broken section
+          : traceResult.mode === 'UPSTREAM'
+          ? '#8B5CF6' // Purple for upstream source feed
+          : '#06B6D4'; // Cyan for downstream flow
+
+      if (traceResult.edges && traceResult.edges.length > 0) {
+        traceResult.edges.forEach((edge) => {
+          if (!edge.geojson) return;
+          const edgeLayer = L.geoJSON(edge.geojson, {
+            style: {
+              color: edgeColor,
+              weight: 5,
+              opacity: 0.9,
+            },
+          });
+          edgeLayer.bindTooltip(
+            `<b>${edge.name || 'Pipe'}</b><br/>Diameter: ${edge.diameter_mm || '-'} mm<br/>Length: ${edge.length_m.toFixed(1)} m<br/>Direction: ${edge.direction || '-'}`,
+            { sticky: true }
+          );
+          edgeLayer.addTo(group);
+          const b = edgeLayer.getBounds();
+          if (b.isValid()) bounds.extend(b);
+        });
+      }
+
+      // 3. Draw Valves to Close (Pulsing Red Markers)
+      if (traceResult.valvesToClose && traceResult.valvesToClose.length > 0) {
+        traceResult.valvesToClose.forEach((v) => {
+          if (!v.coordinates || v.coordinates.length < 2) return;
+          const latlng = L.latLng(v.coordinates[1], v.coordinates[0]);
+          const marker = L.circleMarker(latlng, {
+            radius: 8,
+            color: '#FFFFFF',
+            weight: 2.5,
+            fillColor: '#DC2626',
+            fillOpacity: 0.95,
+          });
+          marker.bindTooltip(
+            `<div style="font-weight:bold;color:#DC2626">⚠️ VALVE TO CLOSE</div><b>${v.name}</b><br/>Type: ${v.valve_type || 'GATE'}<br/>State: ${v.is_open ? 'OPEN' : 'CLOSED'}`,
+            { permanent: false, sticky: true }
+          );
+          marker.addTo(group);
+          bounds.extend(latlng);
+        });
+      }
+
+      group.addTo(map);
+      traceLayerRef.current = group;
+
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { maxZoom: 18, padding: [60, 60], animate: true });
+      }
+    } catch (err) {
+      console.error('Failed to render network trace result on map:', err);
+    }
+  }, [traceResult]);
 
   // React to Drawn Measure Geometry display
   useEffect(() => {

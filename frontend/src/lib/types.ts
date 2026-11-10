@@ -668,3 +668,78 @@ export interface RebuildTopologyResultDto {
   durationMs: number;
   message: string;
 }
+
+// --- Network Trace Models ---
+export type TraceMode = 'UPSTREAM' | 'DOWNSTREAM' | 'ISOLATION';
+
+export interface NetworkTraceRequest {
+  networkId: string;
+  mode: TraceMode;
+  startFeatureId: string;
+  startKind: 'LINE' | 'POINT';
+  maxDepth?: number;
+  maxEdges?: number;
+}
+
+export interface TraceSummaryDto {
+  totalLengthM: number;
+  edgeCount: number;
+  nodeCount: number;
+  valvesToCloseCount: number;
+  affectedZonesCount: number;
+  executionMs: number;
+}
+
+export interface TraceEdgeDto {
+  id: number;
+  line_id: string;
+  name?: string | null;
+  diameter_mm?: number | null;
+  material?: string | null;
+  direction?: string | null;
+  length_m: number;
+  geojson?: any;
+}
+
+export interface TraceNodeDto {
+  id: number;
+  node_role?: string | null;
+  elevation_m?: number | null;
+  geojson?: any;
+}
+
+export interface TraceValveDto {
+  id: string;
+  name: string;
+  valve_type?: string | null;
+  is_open: boolean;
+  status?: string | null;
+  coordinates: [number, number];
+  geojson?: any;
+}
+
+export interface TraceAffectedPolygonDto {
+  id: string;
+  name: string;
+  feature_type_code: string;
+  geojson?: any;
+}
+
+export interface NetworkTraceResultDto {
+  networkId: string;
+  mode: TraceMode;
+  startFeatureId: string;
+  startKind: 'LINE' | 'POINT';
+  error?: string | null;
+  summary: TraceSummaryDto;
+  edges: TraceEdgeDto[];
+  nodes: TraceNodeDto[];
+  valvesToClose: TraceValveDto[];
+  affectedPolygons: TraceAffectedPolygonDto[];
+}
+
+export interface TraceReportRequest {
+  traceResult: NetworkTraceResultDto;
+  networkName: string;
+  format?: 'PDF' | 'CSV';
+}

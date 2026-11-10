@@ -614,6 +614,230 @@ public sealed class ReportService : IReportService
 
     #endregion
 
+    #region Network Trace Report
+
+    public Task<GeneratedReportResult> GenerateTraceReportAsync(TraceReportRequest request, CancellationToken ct = default)
+    {
+        var trace = request.TraceResult;
+        var summary = trace.Summary;
+        var isCsv = string.Equals(request.Format, "CSV", StringComparison.OrdinalIgnoreCase);
+
+        if (isCsv)
+        {
+            var csv = new StringBuilder();
+            csv.AppendLine("Network,Trace Mode,Start Feature ID,Start Kind,Total Length (m),Traversed Edges,Traversed Nodes,Valves to Close,Affected Zones,Execution (ms)");
+            csv.AppendLine(string.Join(",",
+                EscapeCsv(request.NetworkName),
+                EscapeCsv(trace.Mode),
+                EscapeCsv(trace.StartFeatureId.ToString()),
+                EscapeCsv(trace.StartKind),
+                summary.TotalLengthM.ToString("F2", CultureInfo.InvariantCulture),
+                summary.EdgeCount.ToString(CultureInfo.InvariantCulture),
+                summary.NodeCount.ToString(CultureInfo.InvariantCulture),
+                summary.ValvesToCloseCount.ToString(CultureInfo.InvariantCulture),
+                summary.AffectedZonesCount.ToString(CultureInfo.InvariantCulture),
+                summary.ExecutionMs.ToString("F2", CultureInfo.InvariantCulture)
+            ));
+
+            if (trace.ValvesToClose.Count > 0)
+            {
+                csv.AppendLine();
+                csv.AppendLine("Valves to Close");
+                csv.AppendLine("Valve ID,Valve Name,Valve Type,Status,Is Open,Longitude,Latitude");
+                foreach (var v in trace.ValvesToClose)
+                {
+                    var lon = v.Coordinates.Length > 0 ? v.Coordinates[0].ToString("F6", CultureInfo.InvariantCulture) : "";
+                    var lat = v.Coordinates.Length > 1 ? v.Coordinates[1].ToString("F6", CultureInfo.InvariantCulture) : "";
+                    csv.AppendLine(string.Join(",",
+                        EscapeCsv(v.Id.ToString()),
+                        EscapeCsv(v.Name),
+                        EscapeCsv(v.ValveType),
+                        EscapeCsv(v.Status),
+                        v.IsOpen ? "YES" : "NO",
+                        lon,
+                        lat
+                    ));
+                }
+            }
+
+            if (trace.Edges.Count > 0)
+            {
+                csv.AppendLine();
+                csv.AppendLine("Traversed Pipes / Segments");
+                csv.AppendLine("Edge ID,Line ID,Name,Diameter (mm),Material,Direction,Length (m)");
+                foreach (var e in trace.Edges)
+                {
+                    csv.AppendLine(string.Join(",",
+                        e.Id.ToString(CultureInfo.InvariantCulture),
+                        EscapeCsv(e.LineId.ToString()),
+                        EscapeCsv(e.Name),
+                        e.DiameterMm?.ToString(CultureInfo.InvariantCulture) ?? "",
+                        EscapeCsv(e.Material),
+                        EscapeCsv(e.Direction),
+                        e.LengthM.ToString("F2", CultureInfo.InvariantCulture)
+                    ));
+                }
+            }
+
+            var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+            var fileName = $"Trace_Report_{trace.Mode}_{DateTime.UtcNow:yyyyMMdd_HHmm}.csv";
+            return Task.FromResult(new GeneratedReportResult(bytes, "text/csv; charset=utf-8", fileName));
+        }
+
+        // PDF Generation
+        var doc = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(1.5f, Unit.Centimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(9).FontFamily("Arial"));
+
+                page.Header().Element(c => ComposeHeader(c,
+                    $"Network Trace & Isolation Report: {trace.Mode}",
+                    $"Network: {request.NetworkName} | Origin: {trace.StartKind} {trace.StartFeatureId}"));
+
+                page.Content().PaddingVertical(10).Column(col =>
+                {
+                    col.Spacing(10);
+
+                    // KPI Summary Cards
+                    col.Item().Row(row =>
+                    {
+                        row.Spacing(6);
+                        row.RelativeItem().Element(c => ComposeKpiCard(c, "Trace Mode", trace.Mode, Colors.Blue.Medium));
+                        row.RelativeItem().Element(c => ComposeKpiCard(c, "Total Affected Length", $"{summary.TotalLengthM:F1} m", Colors.Teal.Darken2));
+                        row.RelativeItem().Element(c => ComposeKpiCard(c, "Traversed Pipes", summary.EdgeCount.ToString(CultureInfo.InvariantCulture), Colors.Indigo.Medium));
+                        row.RelativeItem().Element(c => ComposeKpiCard(c, "Valves to Close", summary.ValvesToCloseCount.ToString(CultureInfo.InvariantCulture), summary.ValvesToCloseCount > 0 ? Colors.Red.Medium : Colors.Green.Medium));
+                        row.RelativeItem().Element(c => ComposeKpiCard(c, "Affected Zones", summary.AffectedZonesCount.ToString(CultureInfo.InvariantCulture), Colors.Orange.Medium));
+                        row.RelativeItem().Element(c => ComposeKpiCard(c, "Execution Time", $"{summary.ExecutionMs:F1} ms", Colors.Grey.Darken3));
+                    });
+
+                    // Valves to Close Table (Critical for Isolation)
+                    if (trace.ValvesToClose.Count > 0)
+                    {
+                        col.Item().Text("Operable Valves to Close (محابس العزل المطلوبة ميدانياً)").FontSize(12).Bold().FontColor(Colors.Red.Darken2);
+
+                        col.Item().Table(table =>
+                        {
+                            table.ColumnsDefinition(cols =>
+                            {
+                                cols.ConstantColumn(30);
+                                cols.RelativeColumn(3);
+                                cols.RelativeColumn(2);
+                                cols.RelativeColumn(2);
+                                cols.RelativeColumn(3);
+                            });
+
+                            table.Header(h =>
+                            {
+                                h.Cell().Element(CellStyle).Text("#").Bold();
+                                h.Cell().Element(CellStyle).Text("Valve Name").Bold();
+                                h.Cell().Element(CellStyle).Text("Valve Type").Bold();
+                                h.Cell().Element(CellStyle).Text("Current State").Bold();
+                                h.Cell().Element(CellStyle).Text("Coordinates (Lon, Lat)").Bold();
+
+                                static IContainer CellStyle(IContainer c) =>
+                                    c.Background(Colors.Red.Lighten4).BorderBottom(1).BorderColor(Colors.Red.Lighten1).Padding(4);
+                            });
+
+                            var idx = 1;
+                            foreach (var v in trace.ValvesToClose)
+                            {
+                                var coords = v.Coordinates.Length >= 2
+                                    ? $"{v.Coordinates[0]:F5}, {v.Coordinates[1]:F5}"
+                                    : "-";
+
+                                table.Cell().Element(c => CellStyle(c, idx)).Text(idx.ToString(CultureInfo.InvariantCulture));
+                                table.Cell().Element(c => CellStyle(c, idx)).Text(v.Name ?? "Isolation Valve");
+                                table.Cell().Element(c => CellStyle(c, idx)).Text(v.ValveType ?? "GATE");
+                                table.Cell().Element(c => CellStyle(c, idx)).Text(v.IsOpen ? "OPEN (Turn to Close)" : "CLOSED").FontColor(v.IsOpen ? Colors.Red.Darken1 : Colors.Green.Darken1).Bold();
+                                table.Cell().Element(c => CellStyle(c, idx)).Text(coords).FontFamily("Courier New");
+
+                                idx++;
+                            }
+
+                            static IContainer CellStyle(IContainer c, int rowIdx) =>
+                                c.Background(rowIdx % 2 == 0 ? Colors.Grey.Lighten4 : Colors.White).Padding(4);
+                        });
+                    }
+
+                    // Affected Pressure Service Zones
+                    if (trace.AffectedPolygons.Count > 0)
+                    {
+                        col.Item().Text("Affected Pressure Service Zones (مناطق الخدمة المتأثرة)").FontSize(11).Bold().FontColor(Colors.Orange.Darken3);
+                        col.Item().Row(r =>
+                        {
+                            r.Spacing(6);
+                            foreach (var z in trace.AffectedPolygons)
+                            {
+                                r.RelativeItem().Background(Colors.Orange.Lighten5).Border(1).BorderColor(Colors.Orange.Lighten2).Padding(6).Column(zc =>
+                                {
+                                    zc.Item().Text(z.Name).FontSize(9).Bold().FontColor(Colors.Orange.Darken4);
+                                    zc.Item().Text($"Code: {z.FeatureTypeCode}").FontSize(8).FontColor(Colors.Grey.Darken2);
+                                });
+                            }
+                        });
+                    }
+
+                    // Top Affected Pipe Segments
+                    col.Item().Text($"Traversed Utility Pipes (Showing up to 25 of {trace.Edges.Count})").FontSize(11).Bold().FontColor(Colors.Grey.Darken3);
+
+                    col.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(cols =>
+                        {
+                            cols.ConstantColumn(25);
+                            cols.RelativeColumn(4);
+                            cols.RelativeColumn(2);
+                            cols.RelativeColumn(2);
+                            cols.RelativeColumn(2);
+                            cols.RelativeColumn(2);
+                        });
+
+                        table.Header(h =>
+                        {
+                            h.Cell().Element(CellStyle).Text("#").Bold();
+                            h.Cell().Element(CellStyle).Text("Pipe Segment").Bold();
+                            h.Cell().Element(CellStyle).Text("Diameter").Bold();
+                            h.Cell().Element(CellStyle).Text("Material").Bold();
+                            h.Cell().Element(CellStyle).Text("Direction").Bold();
+                            h.Cell().Element(CellStyle).Text("Length").Bold();
+
+                            static IContainer CellStyle(IContainer c) =>
+                                c.Background(Colors.Grey.Lighten3).BorderBottom(1).BorderColor(Colors.Grey.Lighten1).Padding(4);
+                        });
+
+                        var pIdx = 1;
+                        foreach (var e in trace.Edges.Take(25))
+                        {
+                            table.Cell().Element(c => CellStyle(c, pIdx)).Text(pIdx.ToString(CultureInfo.InvariantCulture));
+                            table.Cell().Element(c => CellStyle(c, pIdx)).Text(e.Name ?? $"Pipe {e.Id}");
+                            table.Cell().Element(c => CellStyle(c, pIdx)).Text(e.DiameterMm.HasValue ? $"{e.DiameterMm} mm" : "-");
+                            table.Cell().Element(c => CellStyle(c, pIdx)).Text(e.Material ?? "HDPE");
+                            table.Cell().Element(c => CellStyle(c, pIdx)).Text(e.Direction ?? "WITH_DIGITIZED").FontSize(8);
+                            table.Cell().Element(c => CellStyle(c, pIdx)).Text($"{e.LengthM:F1} m").Bold();
+
+                            pIdx++;
+                        }
+
+                        static IContainer CellStyle(IContainer c, int rowIdx) =>
+                            c.Background(rowIdx % 2 == 0 ? Colors.Grey.Lighten5 : Colors.White).Padding(4);
+                    });
+                });
+
+                page.Footer().Element(ComposeFooter);
+            });
+        });
+
+        var pdfBytes = doc.GeneratePdf();
+        var pdfName = $"Network_Trace_{trace.Mode}_{DateTime.UtcNow:yyyyMMdd_HHmm}.pdf";
+        return Task.FromResult(new GeneratedReportResult(pdfBytes, "application/pdf", pdfName));
+    }
+
+    #endregion
+
     #region Layout Helpers
 
     private static void ComposeHeader(IContainer container, string title, string subtitle)

@@ -73,6 +73,7 @@ RETURNS TABLE (
     edge_count INT,
     rebuilt_at TIMESTAMPTZ
 ) AS $$
+#variable_conflict use_column
 DECLARE
     v_snap_tol DOUBLE PRECISION;
     v_nodes_total INT := 0;
@@ -97,13 +98,7 @@ BEGIN
 
     -- Cluster line endpoints in metric projection (EPSG:32636 - UTM Zone 36N for Cairo/ACUD)
     -- and insert clustered centroids as topology_nodes
-    INSERT INTO topology_nodes (network_id, geom, node_role, created_at)
-    SELECT
-        p_network_id,
-        ST_SetSRID(ST_Transform(ST_Centroid(ST_Collect(ST_Transform(pts.geom, 32636))), 4326), 4326) AS geom,
-        'JUNCTION'::topology_role,
-        v_now
-    FROM (
+    WITH raw_pts AS (
         SELECT ST_StartPoint(l.geom) AS geom
         FROM lines l
         WHERE l.network_id = p_network_id
@@ -113,8 +108,21 @@ BEGIN
         FROM lines l
         WHERE l.network_id = p_network_id
           AND l.geom IS NOT NULL
-    ) pts
-    GROUP BY ST_ClusterDBSCAN(ST_Transform(pts.geom, 32636), eps := v_snap_tol, minpoints := 1) OVER ();
+    ),
+    clustered_pts AS (
+        SELECT
+            geom,
+            ST_ClusterDBSCAN(ST_Transform(geom, 32636), eps := v_snap_tol, minpoints := 1) OVER () AS cid
+        FROM raw_pts
+    )
+    INSERT INTO topology_nodes (network_id, geom, node_role, created_at)
+    SELECT
+        p_network_id,
+        ST_SetSRID(ST_Transform(ST_Centroid(ST_Collect(ST_Transform(geom, 32636))), 4326), 4326) AS geom,
+        'JUNCTION'::topology_role,
+        v_now
+    FROM clustered_pts
+    GROUP BY cid;
 
     GET DIAGNOSTICS v_nodes_total = ROW_COUNT;
 
@@ -127,7 +135,7 @@ BEGIN
         tn.id AS to_node,
         l.flow_direction,
         l.geom,
-        COALESCE(l.length_m, ST_Length(l.geom::geography)),
+        ST_Length(l.geom::geography),
         v_now
     FROM lines l
     CROSS JOIN LATERAL (
