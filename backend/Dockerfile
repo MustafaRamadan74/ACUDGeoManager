@@ -34,3 +34,4 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 5000
 
 ENTRYPOINT ["dotnet", "UtilityNetwork.Api.dll"]
+

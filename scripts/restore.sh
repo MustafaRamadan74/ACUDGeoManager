@@ -16,3 +16,4 @@ echo "Restoring database '$DB_NAME' from '$BACKUP_FILE' into container '$CONTAIN
 docker exec -i "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" < "$BACKUP_FILE"
 
 echo "Database restore completed successfully."
+

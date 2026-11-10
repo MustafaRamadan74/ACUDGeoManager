@@ -17,3 +17,4 @@ docker exec -i "$CONTAINER_NAME" pg_dump -U "$DB_USER" -d "$DB_NAME" --format=pl
 
 echo "Database backup created: $DUMP_FILE ($(du -h "$DUMP_FILE" | cut -f1))"
 echo "Backup process completed."
+

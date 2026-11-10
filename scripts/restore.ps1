@@ -19,3 +19,4 @@ Write-Host "Restoring database '$DbName' on container '$ContainerName' from '$Ba
 Get-Content $BackupSqlFile -Raw | docker exec -i $ContainerName psql -U $DbUser -d $DbName
 
 Write-Host "Database restore completed successfully!" -ForegroundColor Green
+

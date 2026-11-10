@@ -156,3 +156,4 @@ public sealed class EnterpriseAndCollaborationTests
         Assert.Empty(tracker.GetUsersInWorkspace(ws1));
     }
 }
+

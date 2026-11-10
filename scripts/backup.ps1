@@ -30,3 +30,4 @@ if (Test-Path $uploadsDir) {
 }
 
 Write-Host "Backup process completed at $(Get-Date)" -ForegroundColor Cyan
+
